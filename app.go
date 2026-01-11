@@ -2,23 +2,46 @@ package main
 
 import (
 	"context"
+	_ "embed"
+	"log/slog"
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"rungine/internal/registry"
 	"rungine/internal/uci"
 )
 
+//go:embed registry/engines.toml
+var embeddedRegistry []byte
+
 // App struct holds application state and provides Wails bindings.
 type App struct {
-	ctx     context.Context
-	engines *uci.EngineManager
+	ctx       context.Context
+	engines   *uci.EngineManager
+	registry  *registry.Manager
+	installer *registry.Installer
 }
 
 // NewApp creates a new App application struct.
 func NewApp() *App {
+	cpuFeatures := registry.DetectCPUFeatures()
+	slog.Info("detected CPU features", "features", cpuFeatures.FeatureString())
+
+	regMgr := registry.NewManager("", cpuFeatures)
+	if err := regMgr.LoadFromEmbed(embeddedRegistry); err != nil {
+		slog.Warn("failed to load embedded registry", "err", err)
+	}
+
+	installer, err := registry.NewInstaller(regMgr)
+	if err != nil {
+		slog.Warn("failed to create installer", "err", err)
+	}
+
 	return &App{
-		engines: uci.NewEngineManager(),
+		engines:   uci.NewEngineManager(),
+		registry:  regMgr,
+		installer: installer,
 	}
 }
 
@@ -30,6 +53,38 @@ func (a *App) startup(ctx context.Context) {
 	a.engines.SetAnalysisCallback(func(info uci.AnalysisInfo) {
 		runtime.EventsEmit(ctx, "analysis:info", info)
 	})
+
+	// Wire up installer events to frontend
+	if a.installer != nil {
+		a.installer.SetDownloadProgressCallback(func(p registry.DownloadProgress) {
+			runtime.EventsEmit(ctx, "download:progress", p)
+		})
+		a.installer.SetInstallProgressCallback(func(p registry.InstallProgress) {
+			runtime.EventsEmit(ctx, "install:progress", p)
+		})
+	}
+
+	// Auto-register installed engines
+	a.loadInstalledEngines()
+}
+
+// loadInstalledEngines registers engines that were previously installed.
+func (a *App) loadInstalledEngines() {
+	if a.installer == nil {
+		return
+	}
+
+	installed, err := a.installer.ListInstalled()
+	if err != nil {
+		slog.Warn("failed to list installed engines", "err", err)
+		return
+	}
+
+	for _, eng := range installed {
+		if err := a.engines.RegisterEngine(eng.ID, eng.BinaryPath); err != nil {
+			slog.Warn("failed to register installed engine", "id", eng.ID, "err", err)
+		}
+	}
 }
 
 // shutdown is called when the app is closing.
@@ -114,4 +169,50 @@ func (a *App) StopAnalysis(engineIDs []string) error {
 // SetAnalysisThrottle sets the UI update rate in Hz.
 func (a *App) SetAnalysisThrottle(hz int) {
 	a.engines.SetThrottleRate(hz)
+}
+
+// ListAvailableEngines returns engines available for installation from the registry.
+func (a *App) ListAvailableEngines() []registry.EngineInfo {
+	return a.registry.ListEngineInfo()
+}
+
+// ListInstalledEngines returns engines that have been installed locally.
+func (a *App) ListInstalledEngines() ([]registry.InstalledEngine, error) {
+	if a.installer == nil {
+		return nil, nil
+	}
+	return a.installer.ListInstalled()
+}
+
+// InstallEngine downloads and installs an engine from the registry.
+func (a *App) InstallEngine(engineID string) error {
+	if a.installer == nil {
+		return nil
+	}
+
+	installed, err := a.installer.Install(a.ctx, engineID)
+	if err != nil {
+		return err
+	}
+
+	// Auto-register the newly installed engine
+	return a.engines.RegisterEngine(installed.ID, installed.BinaryPath)
+}
+
+// UninstallEngine removes an installed engine.
+func (a *App) UninstallEngine(engineID string) error {
+	if a.installer == nil {
+		return nil
+	}
+
+	// Stop and unregister first
+	a.engines.StopEngine(engineID)
+	a.engines.UnregisterEngine(engineID)
+
+	return a.installer.Uninstall(engineID)
+}
+
+// GetCPUFeatures returns the detected CPU features.
+func (a *App) GetCPUFeatures() string {
+	return registry.DetectCPUFeatures().FeatureString()
 }

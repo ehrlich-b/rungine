@@ -25,6 +25,63 @@ export namespace main {
 
 }
 
+export namespace registry {
+	
+	export class EngineInfo {
+	    id: string;
+	    name: string;
+	    version: string;
+	    author: string;
+	    description: string;
+	    eloEstimate: number;
+	    requiresNetwork: boolean;
+	    hasBuild: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new EngineInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.version = source["version"];
+	        this.author = source["author"];
+	        this.description = source["description"];
+	        this.eloEstimate = source["eloEstimate"];
+	        this.requiresNetwork = source["requiresNetwork"];
+	        this.hasBuild = source["hasBuild"];
+	    }
+	}
+	export class InstalledEngine {
+	    ID: string;
+	    RegistryID: string;
+	    Name: string;
+	    Version: string;
+	    BinaryPath: string;
+	    InstalledAt: string;
+	    BuildKey: string;
+	    OptionValues: Record<string, string>;
+	
+	    static createFrom(source: any = {}) {
+	        return new InstalledEngine(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.RegistryID = source["RegistryID"];
+	        this.Name = source["Name"];
+	        this.Version = source["Version"];
+	        this.BinaryPath = source["BinaryPath"];
+	        this.InstalledAt = source["InstalledAt"];
+	        this.BuildKey = source["BuildKey"];
+	        this.OptionValues = source["OptionValues"];
+	    }
+	}
+
+}
+
 export namespace uci {
 	
 	export class EngineInfo {

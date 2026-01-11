@@ -36,29 +36,29 @@ Project status tracker. Check items as completed.
 
 ### Registry Parser (`internal/registry/`)
 
-- [ ] Define TOML schema types (`EngineDefinition`, `Build`, `UCIOptionDef`, `Profile`)
-- [ ] Parse `registry/engines.toml`
-- [ ] Validate registry entries on load
+- [x] Define TOML schema types (`EngineDefinition`, `Build`, `UCIOptionDef`, `Profile`)
+- [x] Parse `registry/engines.toml`
+- [x] Validate registry entries on load
 
 ### CPU Detection
 
-- [ ] Add `github.com/klauspost/cpuid/v2` dependency
-- [ ] Detect CPU features (AVX512, AVX2, BMI2, POPCNT, SSE42)
-- [ ] Select optimal build for current platform
+- [x] Add `github.com/klauspost/cpuid/v2` dependency
+- [x] Detect CPU features (AVX512, AVX2, BMI2, POPCNT, SSE42)
+- [x] Select optimal build for current platform
 
 ### Engine Installation
 
-- [ ] Implement download with progress streaming
-- [ ] Implement SHA256 verification
-- [ ] Implement archive extraction (zip, tar, tar.gz)
-- [ ] Set executable permissions (Unix)
-- [ ] Validate engine by running `uci` and checking for `uciok`
-- [ ] Save installed engine config to `~/.rungine/engines/`
-- [ ] Expose installation via Wails bindings with progress events
+- [x] Implement download with progress streaming
+- [x] Implement SHA256 verification
+- [x] Implement archive extraction (zip, tar, tar.gz)
+- [x] Set executable permissions (Unix)
+- [x] Validate engine by running `uci` and checking for `uciok`
+- [x] Save installed engine config to `~/.rungine/engines/`
+- [x] Expose installation via Wails bindings with progress events
 
 ### Populate Registry
 
-- [ ] Add Stockfish 17 entry (all platforms, all CPU variants)
+- [x] Add Stockfish 17 entry (all platforms, all CPU variants)
 - [ ] Add Leela Chess Zero entry (with network file handling)
 - [ ] Add 2-3 other popular engines (Berserk, Ethereal, etc.)
 

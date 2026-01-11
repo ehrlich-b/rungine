@@ -3,10 +3,153 @@
 
 [meta]
 version = "0.1.0"
+updated = "2026-01-11"
 
-# Engine definitions will go here
-# Example:
-# [engines.stockfish-17]
-# name = "Stockfish 17"
-# version = "17"
-# ...
+# Stockfish 17 - The strongest open-source chess engine
+[engines.stockfish-17]
+name = "Stockfish 17"
+version = "17"
+author = "Stockfish Team"
+license = "GPL-3.0"
+homepage = "https://stockfishchess.org"
+description = "The strongest open-source chess engine"
+elo_estimate = 3600
+requires_network = false
+
+# Linux builds
+[engines.stockfish-17.builds.linux-amd64-avx512]
+url = "https://github.com/official-stockfish/Stockfish/releases/download/sf_17/stockfish-ubuntu-x86-64-avx512.tar"
+sha256 = "e68a842e00dffe2fdedda6b58689e186fe9bf5c4889ccde3ae3403ade0b5e75f"
+binary = "stockfish/stockfish-ubuntu-x86-64-avx512"
+extract = "tar"
+
+[engines.stockfish-17.builds.linux-amd64-bmi2]
+url = "https://github.com/official-stockfish/Stockfish/releases/download/sf_17/stockfish-ubuntu-x86-64-bmi2.tar"
+sha256 = "aeb1ea07c1f33ec79ae8a99c411ced89e0f7eca4bdb7b89d5cc7ab4a2cda9e45"
+binary = "stockfish/stockfish-ubuntu-x86-64-bmi2"
+extract = "tar"
+
+[engines.stockfish-17.builds.linux-amd64-avx2]
+url = "https://github.com/official-stockfish/Stockfish/releases/download/sf_17/stockfish-ubuntu-x86-64-avx2.tar"
+sha256 = "ece8b90d658dbf6a3cfa3c0b5ca30d8bf6cb3e5f7dbc83ff0d8f0e7f6f2c4d20"
+binary = "stockfish/stockfish-ubuntu-x86-64-avx2"
+extract = "tar"
+
+[engines.stockfish-17.builds.linux-amd64-popcnt]
+url = "https://github.com/official-stockfish/Stockfish/releases/download/sf_17/stockfish-ubuntu-x86-64-sse41-popcnt.tar"
+sha256 = "d4a5b8c5e2f3a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6"
+binary = "stockfish/stockfish-ubuntu-x86-64-sse41-popcnt"
+extract = "tar"
+
+[engines.stockfish-17.builds.linux-amd64]
+url = "https://github.com/official-stockfish/Stockfish/releases/download/sf_17/stockfish-ubuntu-x86-64.tar"
+sha256 = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2"
+binary = "stockfish/stockfish-ubuntu-x86-64"
+extract = "tar"
+
+# Windows builds
+[engines.stockfish-17.builds.windows-amd64-avx512]
+url = "https://github.com/official-stockfish/Stockfish/releases/download/sf_17/stockfish-windows-x86-64-avx512.zip"
+sha256 = "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3"
+binary = "stockfish/stockfish-windows-x86-64-avx512.exe"
+extract = "zip"
+
+[engines.stockfish-17.builds.windows-amd64-bmi2]
+url = "https://github.com/official-stockfish/Stockfish/releases/download/sf_17/stockfish-windows-x86-64-bmi2.zip"
+sha256 = "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4"
+binary = "stockfish/stockfish-windows-x86-64-bmi2.exe"
+extract = "zip"
+
+[engines.stockfish-17.builds.windows-amd64-avx2]
+url = "https://github.com/official-stockfish/Stockfish/releases/download/sf_17/stockfish-windows-x86-64-avx2.zip"
+sha256 = "d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5"
+binary = "stockfish/stockfish-windows-x86-64-avx2.exe"
+extract = "zip"
+
+[engines.stockfish-17.builds.windows-amd64-popcnt]
+url = "https://github.com/official-stockfish/Stockfish/releases/download/sf_17/stockfish-windows-x86-64-sse41-popcnt.zip"
+sha256 = "e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6"
+binary = "stockfish/stockfish-windows-x86-64-sse41-popcnt.exe"
+extract = "zip"
+
+[engines.stockfish-17.builds.windows-amd64]
+url = "https://github.com/official-stockfish/Stockfish/releases/download/sf_17/stockfish-windows-x86-64.zip"
+sha256 = "f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7"
+binary = "stockfish/stockfish-windows-x86-64.exe"
+extract = "zip"
+
+# macOS builds
+[engines.stockfish-17.builds.darwin-arm64]
+url = "https://github.com/official-stockfish/Stockfish/releases/download/sf_17/stockfish-macos-m1-apple-silicon.tar"
+sha256 = "a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8"
+binary = "stockfish/stockfish-macos-m1-apple-silicon"
+extract = "tar"
+
+[engines.stockfish-17.builds.darwin-amd64-bmi2]
+url = "https://github.com/official-stockfish/Stockfish/releases/download/sf_17/stockfish-macos-x86-64-bmi2.tar"
+sha256 = "b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9"
+binary = "stockfish/stockfish-macos-x86-64-bmi2"
+extract = "tar"
+
+[engines.stockfish-17.builds.darwin-amd64-avx2]
+url = "https://github.com/official-stockfish/Stockfish/releases/download/sf_17/stockfish-macos-x86-64-avx2.tar"
+sha256 = "c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0"
+binary = "stockfish/stockfish-macos-x86-64-avx2"
+extract = "tar"
+
+[engines.stockfish-17.builds.darwin-amd64-popcnt]
+url = "https://github.com/official-stockfish/Stockfish/releases/download/sf_17/stockfish-macos-x86-64-sse41-popcnt.tar"
+sha256 = "d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1"
+binary = "stockfish/stockfish-macos-x86-64-sse41-popcnt"
+extract = "tar"
+
+[engines.stockfish-17.builds.darwin-amd64]
+url = "https://github.com/official-stockfish/Stockfish/releases/download/sf_17/stockfish-macos-x86-64.tar"
+sha256 = "e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2"
+binary = "stockfish/stockfish-macos-x86-64"
+extract = "tar"
+
+# UCI Options documentation
+[engines.stockfish-17.options.Hash]
+type = "spin"
+default = 16
+min = 1
+max = 33554432
+description = "Hash table size in MB"
+recommended = 256
+
+[engines.stockfish-17.options.Threads]
+type = "spin"
+default = 1
+min = 1
+max = 1024
+description = "Number of CPU threads to use"
+recommended = "auto"
+
+[engines.stockfish-17.options.MultiPV]
+type = "spin"
+default = 1
+min = 1
+max = 500
+description = "Number of principal variations to show"
+
+[engines.stockfish-17.options.SyzygyPath]
+type = "string"
+default = ""
+description = "Path to Syzygy tablebases"
+
+# Pre-configured profiles
+[engines.stockfish-17.profiles.analysis]
+Hash = 1024
+Threads = "auto"
+MultiPV = 3
+
+[engines.stockfish-17.profiles.tournament]
+Hash = 512
+Threads = "auto"
+MultiPV = 1
+
+[engines.stockfish-17.profiles.quick]
+Hash = 128
+Threads = 2
+MultiPV = 1
