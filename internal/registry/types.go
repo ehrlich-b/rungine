@@ -14,17 +14,28 @@ type Meta struct {
 
 // EngineDefinition defines a chess engine available for installation.
 type EngineDefinition struct {
-	Name            string              `toml:"name"`
-	Version         string              `toml:"version"`
-	Author          string              `toml:"author"`
-	License         string              `toml:"license"`
-	Homepage        string              `toml:"homepage"`
-	Description     string              `toml:"description"`
-	ELOEstimate     int                 `toml:"elo_estimate"`
-	RequiresNetwork bool                `toml:"requires_network"`
-	Builds          map[string]Build    `toml:"builds"`
+	Name            string               `toml:"name"`
+	Version         string               `toml:"version"`
+	Author          string               `toml:"author"`
+	License         string               `toml:"license"`
+	Homepage        string               `toml:"homepage"`
+	Description     string               `toml:"description"`
+	ELOEstimate     int                  `toml:"elo_estimate"`
+	RequiresNetwork bool                 `toml:"requires_network"`
+	Builds          map[string]Build     `toml:"builds"`
+	Networks        map[string]Network   `toml:"networks"`
 	Options         map[string]OptionDef `toml:"options"`
-	Profiles        map[string]Profile  `toml:"profiles"`
+	Profiles        map[string]Profile   `toml:"profiles"`
+}
+
+// Network defines a neural network file for NNUE/NN engines.
+type Network struct {
+	URL         string `toml:"url"`
+	SHA256      string `toml:"sha256"`
+	Size        string `toml:"size"`        // Human-readable size (e.g., "330 MB")
+	Description string `toml:"description"`
+	GPUMemory   string `toml:"gpu_memory"`  // Recommended GPU memory (e.g., "4 GB")
+	Default     bool   `toml:"default"`     // Whether this is the default network
 }
 
 // Build defines a platform-specific engine binary.
@@ -65,7 +76,9 @@ type InstalledEngine struct {
 	Name         string            `toml:"name"`
 	Version      string            `toml:"version"`
 	BinaryPath   string            `toml:"binary_path"`
+	NetworkPath  string            `toml:"network_path"` // Path to installed neural network (if any)
 	InstalledAt  string            `toml:"installed_at"`
 	BuildKey     string            `toml:"build_key"`
+	NetworkKey   string            `toml:"network_key"` // Which network was installed
 	OptionValues map[string]string `toml:"options"`
 }

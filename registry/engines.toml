@@ -153,3 +153,285 @@ MultiPV = 1
 Hash = 128
 Threads = 2
 MultiPV = 1
+
+# Leela Chess Zero v0.32.1 - Neural network based chess engine
+[engines.lc0-0.32]
+name = "Leela Chess Zero"
+version = "0.32.1"
+author = "LeelaChessZero Contributors"
+license = "GPL-3.0"
+homepage = "https://lczero.org"
+description = "Neural network chess engine that runs best with GPU"
+elo_estimate = 3550
+requires_network = true
+
+# Windows CPU builds (for users without NVIDIA GPU)
+[engines.lc0-0.32.builds.windows-amd64-cpu-dnnl]
+url = "https://github.com/LeelaChessZero/lc0/releases/download/v0.32.1/lc0-v0.32.1-windows-cpu-dnnl.zip"
+sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
+binary = "lc0.exe"
+extract = "zip"
+
+[engines.lc0-0.32.builds.windows-amd64-cpu-openblas]
+url = "https://github.com/LeelaChessZero/lc0/releases/download/v0.32.1/lc0-v0.32.1-windows-cpu-openblas.zip"
+sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
+binary = "lc0.exe"
+extract = "zip"
+
+# Windows GPU builds (NVIDIA CUDA)
+[engines.lc0-0.32.builds.windows-amd64-cuda12]
+url = "https://github.com/LeelaChessZero/lc0/releases/download/v0.32.1/lc0-v0.32.1-windows-gpu-nvidia-cuda12.zip"
+sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
+binary = "lc0.exe"
+extract = "zip"
+
+[engines.lc0-0.32.builds.windows-amd64-cuda11]
+url = "https://github.com/LeelaChessZero/lc0/releases/download/v0.32.1/lc0-v0.32.1-windows-gpu-nvidia-cuda11.zip"
+sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
+binary = "lc0.exe"
+extract = "zip"
+
+[engines.lc0-0.32.builds.windows-amd64-cudnn]
+url = "https://github.com/LeelaChessZero/lc0/releases/download/v0.32.1/lc0-v0.32.1-windows-gpu-nvidia-cudnn.zip"
+sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
+binary = "lc0.exe"
+extract = "zip"
+
+# Windows ONNX DirectML (supports AMD/Intel GPUs)
+[engines.lc0-0.32.builds.windows-amd64-onnx-dml]
+url = "https://github.com/LeelaChessZero/lc0/releases/download/v0.32.1/lc0-v0.32.1-windows-onnx-dml.zip"
+sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
+binary = "lc0.exe"
+extract = "zip"
+
+# Neural network files
+[engines.lc0-0.32.networks.bt4-1024x15]
+url = "https://storage.lczero.org/files/networks-contrib/BT4-1024x15x32h-swa-6147500-policytune-332.pb.gz"
+sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
+size = "365 MB"
+description = "BT4-it332 - Competition network used in TCEC/CCC"
+gpu_memory = "4 GB"
+default = true
+
+[engines.lc0-0.32.networks.bt3-768x15]
+url = "https://storage.lczero.org/files/networks-contrib/BT3-768x15x24h-swa-2790000.pb.gz"
+sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
+size = "190 MB"
+description = "BT3 - Good balance of strength and speed"
+gpu_memory = "2.6 GB"
+
+[engines.lc0-0.32.networks.t1-512x15-distilled]
+url = "https://storage.lczero.org/files/networks-contrib/t1-512x15x8h-distilled-swa-3395000.pb.gz"
+sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
+size = "140 MB"
+description = "T1 Distilled - Smaller network for weaker hardware"
+gpu_memory = "1.8 GB"
+
+# UCI Options
+[engines.lc0-0.32.options.WeightsFile]
+type = "string"
+default = ""
+description = "Path to neural network weights file"
+
+[engines.lc0-0.32.options.Backend]
+type = "combo"
+default = "cuda-auto"
+description = "Compute backend to use"
+
+[engines.lc0-0.32.options.Threads]
+type = "spin"
+default = 2
+min = 1
+max = 128
+description = "Number of CPU threads for search"
+
+[engines.lc0-0.32.options.MinibatchSize]
+type = "spin"
+default = 256
+min = 1
+max = 1024
+description = "Batch size for neural network evaluation"
+
+[engines.lc0-0.32.options.MultiPV]
+type = "spin"
+default = 1
+min = 1
+max = 500
+description = "Number of principal variations to show"
+
+# Profiles
+[engines.lc0-0.32.profiles.analysis]
+Threads = 2
+MinibatchSize = 256
+MultiPV = 3
+
+[engines.lc0-0.32.profiles.tournament]
+Threads = 2
+MinibatchSize = 256
+MultiPV = 1
+
+# Berserk 13 - Strong open-source NNUE engine
+[engines.berserk-13]
+name = "Berserk"
+version = "13"
+author = "Jay Honnold"
+license = "GPL-3.0"
+homepage = "https://github.com/jhonnold/berserk"
+description = "Strong open-source chess engine using NNUE evaluation"
+elo_estimate = 3550
+requires_network = false
+
+# Linux builds
+[engines.berserk-13.builds.linux-amd64-avx512]
+url = "https://github.com/jhonnold/berserk/releases/download/13/berserk-13-x64-avx512-linux"
+sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
+binary = "berserk-13-x64-avx512-linux"
+extract = ""
+
+[engines.berserk-13.builds.linux-amd64-avx2]
+url = "https://github.com/jhonnold/berserk/releases/download/13/berserk-13-x64-avx2-linux"
+sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
+binary = "berserk-13-x64-avx2-linux"
+extract = ""
+
+[engines.berserk-13.builds.linux-amd64]
+url = "https://github.com/jhonnold/berserk/releases/download/13/berserk-13-x64-linux"
+sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
+binary = "berserk-13-x64-linux"
+extract = ""
+
+# Windows builds
+[engines.berserk-13.builds.windows-amd64-avx512]
+url = "https://github.com/jhonnold/berserk/releases/download/13/berserk-13-x64-avx512.exe"
+sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
+binary = "berserk-13-x64-avx512.exe"
+extract = ""
+
+[engines.berserk-13.builds.windows-amd64-avx2]
+url = "https://github.com/jhonnold/berserk/releases/download/13/berserk-13-x64-avx2.exe"
+sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
+binary = "berserk-13-x64-avx2.exe"
+extract = ""
+
+[engines.berserk-13.builds.windows-amd64]
+url = "https://github.com/jhonnold/berserk/releases/download/13/berserk-13-x64.exe"
+sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
+binary = "berserk-13-x64.exe"
+extract = ""
+
+# UCI Options
+[engines.berserk-13.options.Hash]
+type = "spin"
+default = 16
+min = 1
+max = 65536
+description = "Hash table size in MB"
+recommended = 256
+
+[engines.berserk-13.options.Threads]
+type = "spin"
+default = 1
+min = 1
+max = 256
+description = "Number of CPU threads to use"
+recommended = "auto"
+
+[engines.berserk-13.options.MultiPV]
+type = "spin"
+default = 1
+min = 1
+max = 256
+description = "Number of principal variations to show"
+
+[engines.berserk-13.options.SyzygyPath]
+type = "string"
+default = ""
+description = "Path to Syzygy tablebases"
+
+# Profiles
+[engines.berserk-13.profiles.analysis]
+Hash = 512
+Threads = "auto"
+MultiPV = 3
+
+[engines.berserk-13.profiles.tournament]
+Hash = 256
+Threads = "auto"
+MultiPV = 1
+
+# Koivisto 9.0 - Strong NNUE engine by Kim Kåhre and Finn Eggers
+[engines.koivisto-9]
+name = "Koivisto"
+version = "9.0"
+author = "Kim Kåhre, Finn Eggers"
+license = "GPL-3.0"
+homepage = "https://github.com/Luecx/Koivisto"
+description = "Strong chess engine with modern NNUE evaluation"
+elo_estimate = 3500
+requires_network = false
+
+# Linux builds
+[engines.koivisto-9.builds.linux-amd64-avx2]
+url = "https://github.com/Luecx/Koivisto/releases/download/v9.0/Koivisto_9.0_linux_avx2"
+sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
+binary = "Koivisto_9.0_linux_avx2"
+extract = ""
+
+[engines.koivisto-9.builds.linux-amd64]
+url = "https://github.com/Luecx/Koivisto/releases/download/v9.0/Koivisto_9.0_linux_sse"
+sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
+binary = "Koivisto_9.0_linux_sse"
+extract = ""
+
+# Windows builds
+[engines.koivisto-9.builds.windows-amd64-avx2]
+url = "https://github.com/Luecx/Koivisto/releases/download/v9.0/Koivisto_9.0_windows_avx2.exe"
+sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
+binary = "Koivisto_9.0_windows_avx2.exe"
+extract = ""
+
+[engines.koivisto-9.builds.windows-amd64]
+url = "https://github.com/Luecx/Koivisto/releases/download/v9.0/Koivisto_9.0_windows_sse.exe"
+sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
+binary = "Koivisto_9.0_windows_sse.exe"
+extract = ""
+
+# UCI Options
+[engines.koivisto-9.options.Hash]
+type = "spin"
+default = 16
+min = 1
+max = 65536
+description = "Hash table size in MB"
+recommended = 256
+
+[engines.koivisto-9.options.Threads]
+type = "spin"
+default = 1
+min = 1
+max = 256
+description = "Number of CPU threads to use"
+recommended = "auto"
+
+[engines.koivisto-9.options.MultiPV]
+type = "spin"
+default = 1
+min = 1
+max = 256
+description = "Number of principal variations to show"
+
+[engines.koivisto-9.options.SyzygyPath]
+type = "string"
+default = ""
+description = "Path to Syzygy tablebases"
+
+# Profiles
+[engines.koivisto-9.profiles.analysis]
+Hash = 512
+Threads = "auto"
+MultiPV = 3
+
+[engines.koivisto-9.profiles.tournament]
+Hash = 256
+Threads = "auto"
+MultiPV = 1

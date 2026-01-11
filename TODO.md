@@ -59,8 +59,8 @@ Project status tracker. Check items as completed.
 ### Populate Registry
 
 - [x] Add Stockfish 17 entry (all platforms, all CPU variants)
-- [ ] Add Leela Chess Zero entry (with network file handling)
-- [ ] Add 2-3 other popular engines (Berserk, Ethereal, etc.)
+- [x] Add Leela Chess Zero entry (with network file handling)
+- [x] Add 2-3 other popular engines (Berserk, Koivisto)
 
 ---
 

@@ -129,11 +129,24 @@ func (i *Installer) Install(ctx context.Context, engineID string) (*InstalledEng
 		return nil, fmt.Errorf("chmod: %w", err)
 	}
 
-	// Validate engine
-	i.emitProgress(engineID, "validating", "Validating engine")
-	if err := i.validate(ctx, binaryPath); err != nil {
-		i.emitProgress(engineID, "error", err.Error())
-		return nil, err
+	// Download network file if required
+	var networkPath, networkKey string
+	if engine.RequiresNetwork && len(engine.Networks) > 0 {
+		i.emitProgress(engineID, "downloading_network", "Downloading neural network")
+		networkPath, networkKey, err = i.installNetwork(ctx, engineID, engine, engineDir)
+		if err != nil {
+			i.emitProgress(engineID, "error", err.Error())
+			return nil, err
+		}
+	}
+
+	// Validate engine (skip validation for engines that require network - they need config first)
+	if !engine.RequiresNetwork {
+		i.emitProgress(engineID, "validating", "Validating engine")
+		if err := i.validate(ctx, binaryPath); err != nil {
+			i.emitProgress(engineID, "error", err.Error())
+			return nil, err
+		}
 	}
 
 	// Save config
@@ -143,8 +156,10 @@ func (i *Installer) Install(ctx context.Context, engineID string) (*InstalledEng
 		Name:        engine.Name,
 		Version:     engine.Version,
 		BinaryPath:  binaryPath,
+		NetworkPath: networkPath,
 		InstalledAt: time.Now().Format(time.RFC3339),
 		BuildKey:    buildKey,
+		NetworkKey:  networkKey,
 	}
 
 	configPath := filepath.Join(engineDir, "config.toml")
@@ -376,6 +391,60 @@ func (i *Installer) extractTar(archivePath, destDir, binaryName string, gzipped 
 		return "", fmt.Errorf("binary %s not found in archive", binaryName)
 	}
 	return binaryPath, nil
+}
+
+// installNetwork downloads and verifies a neural network file.
+func (i *Installer) installNetwork(ctx context.Context, engineID string, engine *EngineDefinition, engineDir string) (string, string, error) {
+	// Find default network or first available
+	var network *Network
+	var networkKey string
+	for key, net := range engine.Networks {
+		if net.Default {
+			network = &net
+			networkKey = key
+			break
+		}
+		if network == nil {
+			network = &net
+			networkKey = key
+		}
+	}
+
+	if network == nil {
+		return "", "", fmt.Errorf("no network files defined for engine %s", engineID)
+	}
+
+	// Create networks directory
+	networksDir := filepath.Join(engineDir, "networks")
+	if err := os.MkdirAll(networksDir, 0755); err != nil {
+		return "", "", fmt.Errorf("create networks dir: %w", err)
+	}
+
+	// Determine filename from URL
+	filename := filepath.Base(network.URL)
+	networkPath := filepath.Join(networksDir, filename)
+
+	// Download network file
+	tempFile := filepath.Join(engineDir, "network.tmp")
+	if err := i.download(ctx, engineID, network.URL, tempFile); err != nil {
+		os.Remove(tempFile)
+		return "", "", err
+	}
+
+	// Verify hash
+	i.emitProgress(engineID, "verifying_network", "Verifying network hash")
+	if err := i.verifyHash(tempFile, network.SHA256); err != nil {
+		os.Remove(tempFile)
+		return "", "", err
+	}
+
+	// Move to final location
+	if err := os.Rename(tempFile, networkPath); err != nil {
+		os.Remove(tempFile)
+		return "", "", fmt.Errorf("move network file: %w", err)
+	}
+
+	return networkPath, networkKey, nil
 }
 
 // validate runs the engine and checks for uciok response.
