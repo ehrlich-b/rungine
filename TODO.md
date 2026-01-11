@@ -68,21 +68,21 @@ Project status tracker. Check items as completed.
 
 ### FEN Parser (`internal/fen/`)
 
-- [ ] Parse FEN string into position struct
-- [ ] Validate FEN components (piece placement, side to move, castling, en passant, halfmove, fullmove)
-- [ ] Generate FEN from position
-- [ ] Unit tests with valid/invalid FEN strings
+- [x] Parse FEN string into position struct
+- [x] Validate FEN components (piece placement, side to move, castling, en passant, halfmove, fullmove)
+- [x] Generate FEN from position
+- [x] Unit tests with valid/invalid FEN strings
 
 ### PGN Parser (`internal/pgn/`)
 
-- [ ] Implement tokenizer (tags, moves, comments, NAGs, variations)
-- [ ] Implement move tree construction with variation support
-- [ ] Parse standard 7-tag roster
-- [ ] Handle recursive variations (unlimited depth)
-- [ ] Handle NAG symbols (!, ?, $N)
-- [ ] Handle comments ({...})
-- [ ] Write PGN from game tree
-- [ ] Unit tests for PGN parsing edge cases
+- [x] Implement tokenizer (tags, moves, comments, NAGs, variations)
+- [x] Implement move tree construction with variation support
+- [x] Parse standard 7-tag roster
+- [x] Handle recursive variations (unlimited depth)
+- [x] Handle NAG symbols (!, ?, $N)
+- [x] Handle comments ({...})
+- [x] Write PGN from game tree
+- [x] Unit tests for PGN parsing edge cases
 - [ ] Benchmark: target 10,000+ games/second import speed
 
 ---
