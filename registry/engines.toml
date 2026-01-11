@@ -1,0 +1,12 @@
+# Rungine Engine Registry
+# See DESIGN.md for format specification
+
+[meta]
+version = "0.1.0"
+
+# Engine definitions will go here
+# Example:
+# [engines.stockfish-17]
+# name = "Stockfish 17"
+# version = "17"
+# ...
