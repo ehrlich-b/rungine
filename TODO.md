@@ -19,16 +19,16 @@ Project status tracker. Check items as completed.
 - [x] Implement `stop` and `bestmove` handling
 - [x] Implement crash detection and recovery
 - [x] Add context-based cancellation throughout
-- [ ] Expose engine management via Wails bindings
+- [x] Expose engine management via Wails bindings
 - [x] Write unit tests for UCI parsing (table-driven)
-- [ ] Write integration tests with Stockfish
+- [x] Write integration tests with Stockfish
 
 ### Engine Manager
 
-- [ ] Create EngineManager to handle multiple concurrent engines
-- [ ] Implement engine instance lifecycle tracking
-- [ ] Stream analysis info to frontend via Wails events
-- [ ] Throttle UI events to prevent frontend flooding (10-20Hz)
+- [x] Create EngineManager to handle multiple concurrent engines
+- [x] Implement engine instance lifecycle tracking
+- [x] Stream analysis info to frontend via Wails events
+- [x] Throttle UI events to prevent frontend flooding (10-20Hz)
 
 ---
 

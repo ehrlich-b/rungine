@@ -34,11 +34,21 @@ Rungine is a desktop chess application built with Wails v2 (Go backend + web fro
 
 ## Anchor Documents
 
-When asked to "reanchor and proceed", read these files:
-- README.md
-- CLAUDE.md (this file)
-- DESIGN.md
-- TODO.md (if exists)
+When asked to "reanchor and proceed":
+1. Read these files: README.md, CLAUDE.md, DESIGN.md, TODO.md
+2. Identify the next unchecked item(s) in TODO.md
+3. **Immediately start working** on that task - don't ask for confirmation
+
+"Proceed" means continue autonomously with the next logical work item.
+
+## Committing
+
+Commit like a staff engineer - with confidence, at appropriate times:
+- After completing a logical unit of work (feature, fix, refactor)
+- Before switching to a different task
+- After tests pass and code is in a good state
+
+Don't ask "should I commit?" - just do it when appropriate. Don't commit after every tiny change either.
 
 ## Code Style
 
