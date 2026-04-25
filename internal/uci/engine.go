@@ -32,9 +32,10 @@ type Engine struct {
 	state   EngineState
 	options map[string]UCIOption
 
-	outputCh chan ParsedLine
-	infoCh   chan AnalysisInfo
-	doneCh   chan struct{}
+	outputCh   chan ParsedLine
+	infoCh     chan AnalysisInfo
+	bestMoveCh chan BestMove
+	doneCh     chan struct{}
 
 	mu     sync.Mutex
 	ctx    context.Context
@@ -84,6 +85,7 @@ func (e *Engine) Start(ctx context.Context) error {
 	e.state = EngineStateStarting
 	e.outputCh = make(chan ParsedLine, 100)
 	e.infoCh = make(chan AnalysisInfo, 100)
+	e.bestMoveCh = make(chan BestMove, 4)
 	e.doneCh = make(chan struct{})
 	e.mu.Unlock()
 
@@ -158,6 +160,12 @@ func (e *Engine) Stop() error {
 // InfoChannel returns the channel for analysis info updates.
 func (e *Engine) InfoChannel() <-chan AnalysisInfo {
 	return e.infoCh
+}
+
+// BestMoveChannel returns the channel that receives a `bestmove` from the
+// engine after each `go` command. Reading is required for tournament play.
+func (e *Engine) BestMoveChannel() <-chan BestMove {
+	return e.bestMoveCh
 }
 
 // SetOption sets a UCI option value.
@@ -309,6 +317,17 @@ func (e *Engine) handleLine(line ParsedLine) {
 			e.infoCh <- info
 		}
 	case "bestmove":
+		bm := line.Data.(BestMove)
+		select {
+		case e.bestMoveCh <- bm:
+		default:
+			// Buffer full (caller didn't read previous bestmove); drop oldest
+			select {
+			case <-e.bestMoveCh:
+			default:
+			}
+			e.bestMoveCh <- bm
+		}
 		e.setState(EngineStateReady)
 	}
 }
@@ -329,6 +348,7 @@ func (e *Engine) sendCommand(cmd string) error {
 func (e *Engine) readLoop() {
 	defer close(e.outputCh)
 	defer close(e.infoCh)
+	defer close(e.bestMoveCh)
 
 	scanner := bufio.NewScanner(e.stdout)
 	for scanner.Scan() {

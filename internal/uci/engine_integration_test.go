@@ -153,12 +153,23 @@ done:
 		t.Error("Nodes should not be zero")
 	}
 
-	// Wait for bestmove (engine should transition back to ready)
-	time.Sleep(500 * time.Millisecond)
+	// Wait for bestmove on the channel
+	select {
+	case bm, ok := <-engine.BestMoveChannel():
+		if !ok {
+			t.Fatal("BestMoveChannel closed unexpectedly")
+		}
+		if bm.Move == "" {
+			t.Error("BestMove.Move should not be empty")
+		}
+		t.Logf("bestmove=%s ponder=%s", bm.Move, bm.Ponder)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Timed out waiting for bestmove")
+	}
 
 	// Engine should be back to ready after bestmove
 	if engine.State() != EngineStateReady {
-		t.Logf("State after analysis: %v (may still be processing)", engine.State())
+		t.Errorf("State() = %v, want Ready after bestmove", engine.State())
 	}
 }
 
