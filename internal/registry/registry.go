@@ -22,6 +22,8 @@ type Manager struct {
 	registry     *Registry
 	registryPath string
 	cpuFeatures  CPUFeatures
+	os           string
+	arch         string
 }
 
 // NewManager creates a new registry manager.
@@ -29,6 +31,8 @@ func NewManager(registryPath string, cpuFeatures CPUFeatures) *Manager {
 	return &Manager{
 		registryPath: registryPath,
 		cpuFeatures:  cpuFeatures,
+		os:           runtime.GOOS,
+		arch:         runtime.GOARCH,
 	}
 }
 
@@ -107,21 +111,18 @@ func (m *Manager) GetEngine(id string) (*EngineDefinition, error) {
 
 // SelectBuild chooses the optimal build for the current platform and CPU.
 func (m *Manager) SelectBuild(engine *EngineDefinition) (*Build, string, error) {
-	os := runtime.GOOS
-	arch := runtime.GOARCH
-
 	// Priority order: most optimized first
 	featureSuffixes := m.buildCandidates()
 
 	for _, suffix := range featureSuffixes {
-		key := fmt.Sprintf("%s-%s%s", os, arch, suffix)
+		key := fmt.Sprintf("%s-%s%s", m.os, m.arch, suffix)
 		if build, ok := engine.Builds[key]; ok {
 			return &build, key, nil
 		}
 	}
 
 	// Try without feature suffix
-	key := fmt.Sprintf("%s-%s", os, arch)
+	key := fmt.Sprintf("%s-%s", m.os, m.arch)
 	if build, ok := engine.Builds[key]; ok {
 		return &build, key, nil
 	}

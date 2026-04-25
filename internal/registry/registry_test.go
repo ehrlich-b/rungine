@@ -135,6 +135,8 @@ binary = "engine"
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			mgr := NewManager("", tc.cpuFeatures)
+			mgr.os = "linux"
+			mgr.arch = "amd64"
 			if err := mgr.LoadFromEmbed(tomlData); err != nil {
 				t.Fatalf("LoadFromEmbed() error: %v", err)
 			}
@@ -166,6 +168,8 @@ binary = "engine"
 `)
 
 	mgr := NewManager("", CPUFeatures{AVX2: true})
+	mgr.os = "linux"
+	mgr.arch = "amd64"
 	if err := mgr.LoadFromEmbed(tomlData); err != nil {
 		t.Fatalf("LoadFromEmbed() error: %v", err)
 	}
@@ -362,6 +366,8 @@ sha256 = "hash"
 `)
 
 	mgr := NewManager("", CPUFeatures{})
+	mgr.os = "linux"
+	mgr.arch = "amd64"
 	if err := mgr.LoadFromEmbed(tomlData); err != nil {
 		t.Fatalf("LoadFromEmbed() error: %v", err)
 	}

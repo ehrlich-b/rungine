@@ -1,6 +1,10 @@
 # Rungine TODO
 
-Project status tracker. Check items as completed.
+**Mission:** A world-class engine tournament runner and viewer. The runner schedules and arbitrates UCI engine matches at scale; the viewer presents live games, crosstables, and analysis with TCEC-quality polish.
+
+Reference points: Cute Chess and fast-chess (runner correctness), TCEC broadcast (live viewer UX), Banksia GUI (engine management UX). Goal is to beat all three on the combined experience.
+
+Status tracker. Check items as completed.
 
 ---
 
@@ -11,13 +15,13 @@ Project status tracker. Check items as completed.
 - [x] Define core data structures (`Engine`, `EngineState`, `UCIOption`, `AnalysisInfo`, `Score`)
 - [x] Implement UCI line parser (`parseInfoLine`, `parseOptionLine`, `parseIdLine`)
 - [x] Implement Engine struct with process lifecycle (Start, Stop, stdin/stdout goroutines)
-- [x] Implement `uci` command and `uciok` response handling
+- [x] Implement `uci` / `uciok` handshake
 - [x] Implement `isready` / `readyok` synchronization
 - [x] Implement `setoption` for configuring engine options
 - [x] Implement `position` command (FEN and startpos variants)
 - [x] Implement `go` command variants (infinite, depth, movetime, time controls)
 - [x] Implement `stop` and `bestmove` handling
-- [x] Implement crash detection and recovery
+- [x] Implement crash detection
 - [x] Add context-based cancellation throughout
 - [x] Expose engine management via Wails bindings
 - [x] Write unit tests for UCI parsing (table-driven)
@@ -64,267 +68,273 @@ Project status tracker. Check items as completed.
 
 ---
 
-## Phase 3: Chess Logic
+## Phase 3: Notation Parsers
 
-### FEN Parser (`internal/fen/`)
+### FEN (`internal/fen/`)
 
 - [x] Parse FEN string into position struct
-- [x] Validate FEN components (piece placement, side to move, castling, en passant, halfmove, fullmove)
+- [x] Validate FEN components
 - [x] Generate FEN from position
 - [x] Unit tests with valid/invalid FEN strings
 
-### PGN Parser (`internal/pgn/`)
+### PGN (`internal/pgn/`)
 
-- [x] Implement tokenizer (tags, moves, comments, NAGs, variations)
-- [x] Implement move tree construction with variation support
-- [x] Parse standard 7-tag roster
-- [x] Handle recursive variations (unlimited depth)
-- [x] Handle NAG symbols (!, ?, $N)
-- [x] Handle comments ({...})
+- [x] Tokenizer (tags, moves, comments, NAGs, variations)
+- [x] Move tree construction with variation support
+- [x] Standard 7-tag roster
+- [x] Recursive variations (unlimited depth)
+- [x] NAG symbols (`!`, `?`, `$N`)
+- [x] Comments (`{...}`)
 - [x] Write PGN from game tree
 - [x] Unit tests for PGN parsing edge cases
-- [ ] Benchmark: target 10,000+ games/second import speed
+- [ ] Embedded annotations: write/read `[%eval ...]` and `[%clk ...]` per ply
 
 ---
 
-## Phase 4: Frontend - Core UI
+## Phase 4: Build Hygiene & Chess Core
 
-### Chessboard Rendering
+### Fix the broken build
 
-- [ ] Create SVG-based board component
-- [ ] Render pieces (use or create SVG piece set)
-- [ ] Implement click-to-select and click-to-move
-- [ ] Implement drag-and-drop moves
-- [ ] Highlight last move
-- [ ] Highlight check
-- [ ] Show legal move indicators
-- [ ] Flip board functionality
-- [ ] Coordinate labels (a-h, 1-8)
+- [x] `npm install && npm run build` produces `frontend/dist/`
+- [x] `go build ./...` succeeds (embed resolves)
+- [x] Fix macOS test failures in `internal/registry/registry_test.go` (parameterize OS/arch on `Manager`)
+- [ ] Verify `wails dev` launches with hot reload (requires `wails` CLI)
+- [ ] CI: `go build ./...`, `go test ./...`, frontend type check on push
 
-### Position Navigation
+### Chess core (`internal/chess/`)
 
-- [ ] Bind Go backend game state to frontend
-- [ ] Navigate to position by ply
-- [ ] Keyboard navigation (arrow keys)
-- [ ] Button controls (first, prev, next, last)
+The tournament arbiter cannot validate moves or detect termination without legal move generation, move application, and repetition detection. This package does not yet exist.
 
-### Move List Display
-
-- [ ] Display main line in SAN notation
-- [ ] Show move numbers correctly
-- [ ] Highlight current move
-- [ ] Click move to navigate
-- [ ] Display variations (collapsible)
-- [ ] Display comments
-- [ ] Display NAG symbols as glyphs
-
-### Engine Panel
-
-- [ ] Display engine name and status
-- [ ] Display current depth, score (cp/mate), nodes, NPS
-- [ ] Display principal variation (clickable to preview)
-- [ ] Multiple engine panels (tabbed or stacked)
-- [ ] Start/stop analysis buttons
-- [ ] Engine selector dropdown
-
-### Basic Layout
-
-- [ ] Main layout: board left, moves center, engine panels right
-- [ ] Responsive sizing
-- [ ] Dark theme (default)
-
----
-
-## Phase 5: Database
-
-### SQLite Setup (`internal/database/`)
-
-- [ ] Add `modernc.org/sqlite` dependency
-- [ ] Create database file at `~/.rungine/games.db`
-- [ ] Implement schema migration system
-- [ ] Create games table
-- [ ] Create positions table with FEN hash index
-- [ ] Create FTS5 virtual table for search
-- [ ] Create tags and game_tags tables
-
-### Game Operations
-
-- [ ] Insert game with position indexing
-- [ ] Batch import PGN file (transaction batching)
-- [ ] Search games by player, event, opening
-- [ ] Search games by position (FEN hash lookup)
-- [ ] Export game(s) to PGN
-
-### Wails Bindings
-
-- [ ] `ImportPGN(path string) (count int, err error)`
-- [ ] `SearchGames(query) []GameSummary`
-- [ ] `GetGame(id int) Game`
-- [ ] `DeleteGame(id int) error`
-- [ ] `TagGame(gameID, tag string) error`
-
----
-
-## Phase 6: Frontend - Extended UI
-
-### Game Database UI
-
-- [ ] Game list with columns (White, Black, Result, Date, Event, ECO)
-- [ ] Search/filter form (player names, date range, result)
-- [ ] Position search (paste FEN, find games with position)
-- [ ] Load game from database into viewer
-- [ ] Import PGN file dialog with progress
-- [ ] Delete game confirmation
-
-### Engine Library UI
-
-- [ ] List available engines from registry
-- [ ] Show installed vs available status
-- [ ] Install button with progress bar
-- [ ] Configure engine options UI (spin, check, combo, string)
-- [ ] Engine profiles (quick-switch configurations)
-- [ ] Remove installed engine
-
-### Settings UI
-
-- [ ] Hash table size default
-- [ ] Default thread count
-- [ ] Board theme selection
-- [ ] Piece set selection (if multiple)
-- [ ] Analysis throttle rate
-- [ ] Tablebase path configuration
-
----
-
-## Phase 7: Tournament System
-
-### Game Arbiter (`internal/tournament/`)
-
-- [ ] Define time control struct
-- [ ] Define adjudication rules struct
-- [ ] Implement arbiter game loop (position, go, bestmove cycle)
-- [ ] Track clocks per side
-- [ ] Detect game termination (checkmate, stalemate, time forfeit)
-- [ ] Implement resign adjudication (threshold + move count)
-- [ ] Implement draw adjudication (threshold + move count)
+- [ ] Decide: integrate `github.com/notnil/chess` vs in-house move gen (lean toward notnil/chess for v1, replace later if needed)
+- [ ] Position struct: board, side to move, castling rights, en passant, halfmove clock, fullmove number
+- [ ] Apply UCI move (e.g. `e2e4`, `e1g1`, `e7e8q`) to position
+- [ ] Legal move generation (used by arbiter to validate engine bestmove)
+- [ ] Detect checkmate
+- [ ] Detect stalemate
 - [ ] Detect 50-move rule
-- [ ] Detect threefold repetition
 - [ ] Detect insufficient material
-
-### Tournament Coordinator
-
-- [ ] Round-robin pairing
-- [ ] Swiss pairing (basic)
-- [ ] Gauntlet mode (one vs field)
-- [ ] Opening book integration (Polyglot .bin support)
-- [ ] Tournament progress tracking
-- [ ] ELO/rating calculation from results
-- [ ] Save tournament results to database
-
-### Tournament UI
-
-- [ ] Create tournament wizard (select engines, time control, opening book)
-- [ ] Live game display during tournament
-- [ ] Tournament standings/crosstable
-- [ ] View individual games from tournament
-- [ ] Export tournament PGN
+- [ ] Zobrist hashing for threefold repetition
+- [ ] Convert UCI ↔ SAN
 
 ---
 
-## Phase 8: Live Game Integration
+## Phase 5: Tournament Engine (Backend)
 
-### Lichess Client (`internal/live/`)
+### Game arbiter (`internal/tournament/arbiter.go`)
 
-- [ ] HTTP client with optional OAuth token
-- [ ] Stream broadcast rounds (NDJSON)
-- [ ] Fetch user's recent games
-- [ ] Parse Lichess PGN format
+- [ ] `Arbiter` struct: white engine, black engine, position, clocks, adjudication rules
+- [ ] Game loop: position cmd, go with appropriate clock, await bestmove
+- [ ] Per-side clock tracking with increment
+- [ ] Validate engine bestmove against legal moves (illegal move = forfeit)
+- [ ] Detect time forfeit
+- [ ] Detect engine crash mid-game (forfeit, optionally restart per rules)
+- [ ] Detect natural termination (mate / stalemate / 50-move / threefold / insufficient)
+- [ ] Resign adjudication (eval below threshold for N consecutive plies)
+- [ ] Draw adjudication (eval near zero for N consecutive plies, after min ply)
+- [ ] Emit move-by-move events for live view (move, eval, depth, time used, clocks remaining)
+- [ ] Produce final PGN with embedded `[%eval]` and `[%clk]` annotations
 
-### Chess.com Client
+### Time controls
 
-- [ ] Fetch monthly game archives
-- [ ] Parse Chess.com PGN format
+- [ ] Sudden death (`90+0`)
+- [ ] Increment (`60+0.6`)
+- [ ] Moves + time (`40/15+0`)
+- [ ] Fixed depth (`d=N`) for testing
+- [ ] Fixed nodes (`n=N`) for testing
+- [ ] Fixed movetime (`mt=ms`) for testing
 
-### Live UI
+### Opening selection
 
-- [ ] Follow broadcast input (Lichess round URL)
-- [ ] Display updating position
-- [ ] Show live move list
-- [ ] Analyze with engine while watching
+- [ ] Load opening PGN file, sample positions at configurable ply
+- [ ] Polyglot `.bin` book reader (Zobrist lookup, weighted random)
+- [ ] Pair mode: same opening played twice with colors flipped
 
----
+### Concurrent scheduling (`internal/tournament/scheduler.go`)
 
-## Phase 9: Advanced Features
-
-### Opening Book (`internal/book/`)
-
-- [ ] Polyglot .bin file reader
-- [ ] Zobrist hashing for position lookup
-- [ ] Weighted move selection
-- [ ] Display book moves in UI
-
-### Tablebase (`internal/tablebase/`)
-
-- [ ] Syzygy WDL probing (optional, path-configured)
-- [ ] Display tablebase result in engine panel
-- [ ] Use in tournament adjudication
-
-### SPRT Testing
-
-- [ ] Implement SPRT calculation for engine testing
-- [ ] Display SPRT status (LLR, bounds, result)
-- [ ] Use in tournament mode for development testing
+- [ ] Run N games in parallel (configurable; default = cores / threads-per-engine)
+- [ ] Per-game engine instances (engines hold state, never share)
+- [ ] Pair queue: scheduler pulls next pairing, allocates engine slots
+- [ ] Resource accounting: total threads, hash, NN backends
+- [ ] Pause / resume tournament
+- [ ] Resume from on-disk state after process restart
 
 ---
 
-## Phase 10: Polish and Release
+## Phase 6: Tournament Formats & Rating
 
-### Testing
+### Formats
 
-- [ ] Unit test coverage for all internal packages
-- [ ] Integration tests for engine lifecycle
-- [ ] End-to-end tests for critical paths
-- [ ] Manual testing checklist for releases
+- [ ] Match (two engines, N games)
+- [ ] Round robin (N engines, `N*(N-1)` games)
+- [ ] Gauntlet (one engine vs field)
+- [ ] Swiss (configurable rounds, no repeat pairings, score-paired)
+
+### Scoring
+
+- [ ] Score table per engine (W/D/L, points)
+- [ ] Crosstable (head-to-head matrix)
+- [ ] ELO calculation with iterative convergence (Bayesian or Ordo-style)
+- [ ] ELO confidence intervals (Wilson or LOS)
+- [ ] LOS, draw ratio, performance rating
+
+### SPRT (engine development mode)
+
+- [ ] SPRT calculator: LLR, lower/upper bounds from `elo0` / `elo1` / `alpha` / `beta`
+- [ ] SPRT termination (accept H0 / accept H1 / continue)
+- [ ] Live LLR display during match
+
+---
+
+## Phase 7: GUI Foundation
+
+### Frontend stack
+
+- [ ] Svelte + Vite + TypeScript (or replace once spiked)
+- [ ] App shell: top nav (Tournaments, Engines, Settings), main pane, status bar
+- [ ] Wails event subscription helpers
+- [ ] Dark theme default, light theme optional
+- [ ] Accent color setting
+
+### Chessboard component
+
+- [ ] SVG board, 8x8 squares, file/rank labels (toggleable)
+- [ ] SVG piece set (permissive license — Cburnett or Merida)
+- [ ] Render position from FEN
+- [ ] Last-move highlight
+- [ ] Check highlight
+- [ ] Arrow + circle annotations (for engine PVs)
+- [ ] Flip board
+- [ ] Animated piece transitions during replay
+
+### Move list / PGN navigation
+
+- [ ] Render mainline in SAN
+- [ ] Click move to jump
+- [ ] Keyboard navigation (arrow keys, home/end)
+- [ ] Variation rendering (collapsible)
+- [ ] NAG glyphs
+- [ ] Inline engine annotations (eval, depth, clock)
+
+---
+
+## Phase 8: Tournament Viewer UI (the differentiator)
+
+The "world-class" half. TCEC-quality live broadcast.
+
+### Tournament setup
+
+- [ ] Format picker (match, round robin, gauntlet, Swiss, SPRT)
+- [ ] Engine multi-select from installed
+- [ ] Per-engine UCI option overrides at tournament level
+- [ ] Time control picker
+- [ ] Opening source: random startpos / PGN file / Polyglot book / specific FEN
+- [ ] Concurrency setting
+- [ ] Save tournament config presets
+
+### Live tournament dashboard
+
+- [ ] Header: tournament name, format, progress (X/N games, ETA)
+- [ ] Crosstable updates as games complete
+- [ ] Live games grid: see all in-progress games at once (mini-boards with move/eval)
+- [ ] Click into a game for full view
+
+### Single-game live view
+
+- [ ] Big board with current position
+- [ ] Move list with live engine annotations
+- [ ] Per-engine panel: name, depth, eval, nodes, NPS, PV (clickable to preview)
+- [ ] Live eval graph (line chart, white POV, depth markers)
+- [ ] Clock display (both sides, ticking)
+- [ ] PV-on-board overlay (arrows for engine's planned line)
+
+### Replay finished games
+
+- [ ] Scrubber across game timeline
+- [ ] Step through with engine analysis preserved (cached during run)
+- [ ] Export game PGN with `[%eval]` and `[%clk]`
+
+### Tournament results page
+
+- [ ] Final crosstable
+- [ ] ELO with CI per engine
+- [ ] All games table (white / black / result / length / duration)
+- [ ] Export full tournament PGN
+- [ ] Save tournament to database
+
+---
+
+## Phase 9: Engine Library UI
+
+- [ ] List engines from registry (installed vs available)
+- [ ] One-click install with progress bar
+- [ ] CPU feature display ("your CPU: AVX2, BMI2 — selecting bmi2 build")
+- [ ] Configure UCI options (spin / check / combo / string editors)
+- [ ] Engine profiles (analysis, tournament, quick)
+- [ ] Remove installed engine
+- [ ] Add custom engine (browse for binary, run UCI to discover options)
+
+---
+
+## Phase 10: Database
+
+Scoped to tournament storage, not generic game library.
+
+- [ ] SQLite at `~/.rungine/rungine.db` via `modernc.org/sqlite`
+- [ ] Migration system
+- [ ] Tournaments table (config, status, results)
+- [ ] Games table (linked to tournament, includes embedded analysis)
+- [ ] Engine version table (track which build played which game)
+- [ ] Position index (Zobrist hash) for repetition lookup and game search
+- [ ] Tournament list / search UI
+- [ ] Re-run tournament with same config
+
+---
+
+## Phase 11: Polish & Release
 
 ### Performance
 
-- [ ] Profile and optimize PGN import speed
-- [ ] Verify <1 second app startup
-- [ ] Verify <500ms engine startup to first output
-- [ ] Verify <100MB idle memory usage
-- [ ] Verify <15MB binary size
-
-### Documentation
-
-- [ ] Update README with screenshots
-- [ ] Document keyboard shortcuts
-- [ ] Document registry format for contributors
-- [ ] Write contributing guide
+- [ ] Startup <1s
+- [ ] Engine startup-to-uciok <500ms
+- [ ] Idle memory <100MB
+- [ ] Binary <15MB
+- [ ] Profile under heavy concurrency (32 parallel games)
+- [ ] Frontend frame rate during live updates (target 60fps)
 
 ### Distribution
 
-- [ ] GitHub Actions build workflow (Linux, Windows, macOS)
-- [ ] Create GitHub releases with binaries
+- [ ] GitHub Actions: build for darwin-arm64, darwin-amd64, linux-amd64, windows-amd64
+- [ ] Release on tag
 - [ ] Notarize macOS builds
-- [ ] Code sign Windows builds (if feasible)
+- [ ] Code sign Windows (if feasible)
+
+### Docs
+
+- [ ] README screenshots / GIFs of live tournament
+- [ ] Tournament config schema reference
+- [ ] Keyboard shortcuts reference
+- [ ] Registry contributor guide
 
 ---
 
-## Backlog (Post-MVP)
+## Backlog (post-1.0)
 
-Ideas for future versions, not planned for initial release:
+Not on the critical path to "world-class tournament viewer and runner".
 
-- [ ] Chess960/Fischer Random support
-- [ ] Fairy-Stockfish integration for variants
-- [ ] Cloud analysis (remote engine)
-- [ ] Export analysis to Lichess study
+- [ ] Lichess broadcast follow (watch external tournaments)
+- [ ] Chess.com archive import
+- [ ] Generic PGN library import / massive game database
+- [ ] Standalone analysis mode (load FEN, run engines, no tournament)
 - [ ] Opening book editor
-- [ ] Analysis graph (score over time)
-- [ ] Endgame training mode
-- [ ] Engine development mode (I/O log viewer)
-- [ ] Registry signature verification (GPG)
-- [ ] Auto-update for engines
+- [ ] Cloud / remote engine analysis
+- [ ] Chess960 / variants (via Fairy-Stockfish)
+- [ ] Knockout format
+- [ ] Pentanomial SPRT
+- [ ] Tablebase adjudication (Syzygy WDL probing)
 - [ ] Plugin system for custom analysis tools
+- [ ] Registry GPG signature verification
+- [ ] Auto-update for engines
+- [ ] PGN import benchmark (10,000+ games/sec)
 
 ---
 
