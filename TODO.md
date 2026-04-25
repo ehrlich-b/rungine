@@ -149,7 +149,7 @@ Wraps `github.com/notnil/chess` with a UCI-oriented API for the arbiter.
 
 - [ ] Load opening PGN file, sample positions at configurable ply
 - [ ] Polyglot `.bin` book reader (Zobrist lookup, weighted random)
-- [ ] Pair mode: same opening played twice with colors flipped
+- [x] Pair mode: same opening played twice with colors flipped (in `formats.go` via `PairMode`)
 
 ### Concurrent scheduling (`internal/tournament/scheduler.go`)
 
@@ -167,9 +167,9 @@ Wraps `github.com/notnil/chess` with a UCI-oriented API for the arbiter.
 
 ### Formats
 
-- [ ] Match (two engines, N games)
-- [ ] Round robin (N engines, `N*(N-1)` games)
-- [ ] Gauntlet (one engine vs field)
+- [x] Match (two engines, N games) — `BuildMatch` in `internal/tournament/formats.go`
+- [x] Round robin (N engines, `N*(N-1)` games) — `BuildRoundRobin`
+- [x] Gauntlet (one engine vs field) — `BuildGauntlet`
 - [ ] Swiss (configurable rounds, no repeat pairings, score-paired)
 
 ### Scoring
