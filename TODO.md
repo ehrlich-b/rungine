@@ -103,18 +103,18 @@ Status tracker. Check items as completed.
 
 ### Chess core (`internal/chess/`)
 
-The tournament arbiter cannot validate moves or detect termination without legal move generation, move application, and repetition detection. This package does not yet exist.
+Wraps `github.com/notnil/chess` with a UCI-oriented API for the arbiter.
 
-- [ ] Decide: integrate `github.com/notnil/chess` vs in-house move gen (lean toward notnil/chess for v1, replace later if needed)
-- [ ] Position struct: board, side to move, castling rights, en passant, halfmove clock, fullmove number
-- [ ] Apply UCI move (e.g. `e2e4`, `e1g1`, `e7e8q`) to position
-- [ ] Legal move generation (used by arbiter to validate engine bestmove)
-- [ ] Detect checkmate
-- [ ] Detect stalemate
-- [ ] Detect 50-move rule
-- [ ] Detect insufficient material
-- [ ] Zobrist hashing for threefold repetition
-- [ ] Convert UCI ↔ SAN
+- [x] Pick library: `github.com/notnil/chess` for v1 (replace later if needed)
+- [x] `Game` type with FEN load and PGN export
+- [x] `PushUCI` applies UCI moves, rejects illegal/malformed
+- [x] Detect checkmate
+- [x] Detect stalemate
+- [x] Detect 50-move rule (auto-claimed)
+- [x] Detect insufficient material
+- [x] Detect threefold repetition (auto-claimed)
+- [x] `Resign` / `Adjudicate` for arbiter-imposed terminations (time forfeit, illegal move, score-based)
+- [x] `MovesUCI` / `MovesSAN` history accessors
 
 ---
 
