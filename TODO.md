@@ -87,7 +87,8 @@ Status tracker. Check items as completed.
 - [x] Comments (`{...}`)
 - [x] Write PGN from game tree
 - [x] Unit tests for PGN parsing edge cases
-- [ ] Embedded annotations: write/read `[%eval ...]` and `[%clk ...]` per ply
+- [x] Embedded annotations: write `[%eval ...]` and `[%clk ...]` per ply (writer in `internal/tournament/arbiter.go`)
+- [ ] Embedded annotations: read `[%eval ...]` and `[%clk ...]` per ply
 
 ---
 
@@ -129,10 +130,11 @@ Wraps `github.com/notnil/chess` with a UCI-oriented API for the arbiter.
 - [x] Detect time forfeit
 - [x] Detect engine crash mid-game (forfeit, optionally restart per rules)
 - [x] Detect natural termination (mate / stalemate / 50-move / threefold / insufficient)
-- [ ] Resign adjudication (eval below threshold for N consecutive plies)
-- [ ] Draw adjudication (eval near zero for N consecutive plies, after min ply)
-- [ ] Emit move-by-move events for live view (move, eval, depth, time used, clocks remaining)
-- [ ] Produce final PGN with embedded `[%eval]` and `[%clk]` annotations
+- [x] Resign adjudication (eval below threshold for N consecutive plies)
+- [x] Draw adjudication (eval near zero for N consecutive plies, after min ply)
+- [x] Capture per-ply move record (move, eval, depth, time used, clocks remaining) on `Result`
+- [ ] Stream move-by-move events for live view (Wails events; deferred until viewer scaffolds)
+- [x] Produce final PGN with embedded `[%eval]` and `[%clk]` annotations
 
 ### Time controls
 

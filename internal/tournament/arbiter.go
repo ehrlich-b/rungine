@@ -13,6 +13,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"rungine/internal/chess"
@@ -26,6 +28,7 @@ type Engine interface {
 	Go(params uci.GoParams) error
 	StopSearch() error
 	BestMoveChannel() <-chan uci.BestMove
+	InfoChannel() <-chan uci.AnalysisInfo
 }
 
 // TimeControl describes how time is allocated during a game. Exactly one
@@ -71,6 +74,41 @@ type Config struct {
 	// MaxPlies caps the game length (0 = no cap). When reached, the game
 	// is adjudicated as a draw. Useful for tests and fixed-depth runs.
 	MaxPlies int
+
+	// ResignScore is the centipawn threshold (positive) for resign
+	// adjudication: a side that sees itself losing by at least this margin
+	// (or being mated) for ResignMoves consecutive of its own moves
+	// resigns. Disabled when ResignMoves <= 0.
+	ResignScore int
+	ResignMoves int
+
+	// DrawScore is the centipawn threshold (positive) for draw
+	// adjudication: when both sides report a |score| <= DrawScore (no
+	// mate scores) for DrawMoves consecutive plies, after at least
+	// DrawMinPly plies have been played, the game is adjudicated drawn.
+	// Disabled when DrawMoves <= 0.
+	DrawScore  int
+	DrawMoves  int
+	DrawMinPly int
+
+	// Event, Site, and Round populate the matching PGN tags. All optional;
+	// missing tags are written as "?".
+	Event string
+	Site  string
+	Round string
+}
+
+// MoveRecord captures one ply's move and the engine's last reported
+// analysis info for that move.
+type MoveRecord struct {
+	Ply        int        // 1-based half-move number
+	Side       chess.Side // who played the move
+	UCI        string     // move in UCI long algebraic
+	SAN        string     // move in standard algebraic
+	Info       uci.AnalysisInfo
+	HasInfo    bool          // false when no info line was received
+	Elapsed    time.Duration // wall clock used to choose this move
+	ClockAfter time.Duration // remaining clock after the move (0 in fixed mode)
 }
 
 // Result records the outcome of a single arbitrated game.
@@ -91,6 +129,10 @@ type Result struct {
 	StartedAt time.Time
 	EndedAt   time.Time
 
+	// Moves is the per-ply log: move played, engine's last reported
+	// analysis info, and clock state.
+	Moves []MoveRecord
+
 	// Cause carries detail when the game ended via forfeit (empty for
 	// natural terminations).
 	Cause error
@@ -103,6 +145,13 @@ type Arbiter struct {
 
 	whiteClock time.Duration
 	blackClock time.Duration
+
+	startMoveNum int
+	startSide    chess.Side
+
+	resignStreakWhite int
+	resignStreakBlack int
+	drawStreak        int
 }
 
 // New constructs an Arbiter from a Config. Any starting moves are applied
@@ -125,6 +174,9 @@ func New(cfg Config) (*Arbiter, error) {
 		}
 		game = g
 	}
+
+	startMoveNum, startSide := parseFENMoveNumber(cfg.StartFEN)
+
 	for _, mv := range cfg.StartMoves {
 		if err := game.PushUCI(mv); err != nil {
 			return nil, fmt.Errorf("arbiter: apply start move %q: %w", mv, err)
@@ -132,11 +184,33 @@ func New(cfg Config) (*Arbiter, error) {
 	}
 
 	return &Arbiter{
-		cfg:        cfg,
-		game:       game,
-		whiteClock: cfg.TimeControl.Initial,
-		blackClock: cfg.TimeControl.Initial,
+		cfg:          cfg,
+		game:         game,
+		whiteClock:   cfg.TimeControl.Initial,
+		blackClock:   cfg.TimeControl.Initial,
+		startMoveNum: startMoveNum,
+		startSide:    startSide,
 	}, nil
+}
+
+// parseFENMoveNumber extracts the full move number and side to move
+// from a FEN string. Empty input means startpos (move 1, white).
+func parseFENMoveNumber(fen string) (int, chess.Side) {
+	if fen == "" {
+		return 1, chess.White
+	}
+	fields := strings.Fields(fen)
+	side := chess.White
+	if len(fields) >= 2 && fields[1] == "b" {
+		side = chess.Black
+	}
+	moveNum := 1
+	if len(fields) >= 6 {
+		if n, err := strconv.Atoi(fields[5]); err == nil && n >= 1 {
+			moveNum = n
+		}
+	}
+	return moveNum, side
 }
 
 // Game returns the underlying chess.Game (live; updated as moves are made).
@@ -183,7 +257,7 @@ func (a *Arbiter) Run(ctx context.Context) (*Result, error) {
 			return result, nil
 		}
 
-		bm, err := a.awaitBestMove(ctx, engine, deadline)
+		bm, info, hasInfo, err := a.awaitBestMove(ctx, engine, deadline)
 		elapsed := time.Since(moveStart)
 
 		if err != nil {
@@ -223,6 +297,21 @@ func (a *Arbiter) Run(ctx context.Context) (*Result, error) {
 
 		if err := a.game.PushUCI(bm.Move); err != nil {
 			a.adjudicateForfeit(result, side, name, chess.ReasonIllegalMove, err)
+			return result, nil
+		}
+
+		rec := a.recordMove(side, bm.Move, info, hasInfo, elapsed)
+		result.Moves = append(result.Moves, rec)
+
+		if outcome, reason, loser, ok := a.checkAdjudication(rec); ok {
+			switch outcome {
+			case chess.Drawn:
+				a.adjudicateDraw(result, reason, nil)
+			default:
+				_, loserName := a.engineFor(loser)
+				a.adjudicateForfeit(result, loser, loserName, reason,
+					fmt.Errorf("score adjudication: %s", outcome))
+			}
 			return result, nil
 		}
 
@@ -325,21 +414,171 @@ var (
 	errEngineCrashed = errors.New("engine crashed")
 )
 
-func (a *Arbiter) awaitBestMove(ctx context.Context, engine Engine, deadline time.Duration) (uci.BestMove, error) {
+// awaitBestMove blocks until the engine produces a bestmove, the deadline
+// elapses, the context is cancelled, or the engine crashes. While waiting
+// it drains analysis info; the latest one is returned alongside the move.
+// hasInfo is true iff the engine sent at least one info line for this
+// search.
+func (a *Arbiter) awaitBestMove(ctx context.Context, engine Engine, deadline time.Duration) (uci.BestMove, uci.AnalysisInfo, bool, error) {
 	timer := time.NewTimer(deadline)
 	defer timer.Stop()
 
-	select {
-	case bm, ok := <-engine.BestMoveChannel():
-		if !ok {
-			return uci.BestMove{}, errEngineCrashed
+	bestMoveCh := engine.BestMoveChannel()
+	infoCh := engine.InfoChannel()
+
+	var (
+		latest  uci.AnalysisInfo
+		hasInfo bool
+	)
+
+	for {
+		select {
+		case bm, ok := <-bestMoveCh:
+			if !ok {
+				return uci.BestMove{}, latest, hasInfo, errEngineCrashed
+			}
+			// Drain any pending info before returning so we capture the
+			// engine's final eval even if it raced with bestmove.
+			for {
+				select {
+				case info, ok := <-infoCh:
+					if !ok {
+						return bm, latest, hasInfo, nil
+					}
+					latest = info
+					hasInfo = true
+				default:
+					return bm, latest, hasInfo, nil
+				}
+			}
+		case info, ok := <-infoCh:
+			if !ok {
+				infoCh = nil
+				continue
+			}
+			latest = info
+			hasInfo = true
+		case <-timer.C:
+			return uci.BestMove{}, latest, hasInfo, errMoveTimeout
+		case <-ctx.Done():
+			return uci.BestMove{}, latest, hasInfo, ctx.Err()
 		}
-		return bm, nil
-	case <-timer.C:
-		return uci.BestMove{}, errMoveTimeout
-	case <-ctx.Done():
-		return uci.BestMove{}, ctx.Err()
 	}
+}
+
+// recordMove builds a MoveRecord from the move just played. SAN is read
+// off the game's history to avoid duplicating notnil/chess's encoding.
+func (a *Arbiter) recordMove(side chess.Side, move string, info uci.AnalysisInfo, hasInfo bool, elapsed time.Duration) MoveRecord {
+	sans := a.game.MovesSAN()
+	san := ""
+	if len(sans) > 0 {
+		san = sans[len(sans)-1]
+	}
+	clock := a.whiteClock
+	if side == chess.Black {
+		clock = a.blackClock
+	}
+	if a.cfg.TimeControl.fixed() {
+		clock = 0
+	}
+	return MoveRecord{
+		Ply:        len(sans),
+		Side:       side,
+		UCI:        move,
+		SAN:        san,
+		Info:       info,
+		HasInfo:    hasInfo,
+		Elapsed:    elapsed,
+		ClockAfter: clock,
+	}
+}
+
+// checkAdjudication returns whether the latest move triggers a score-based
+// adjudication. The first three return values are meaningful only when
+// the bool is true. For draw outcomes, the returned side is ignored.
+func (a *Arbiter) checkAdjudication(rec MoveRecord) (chess.Outcome, chess.Reason, chess.Side, bool) {
+	losing := scoreShowsLoss(rec.Info.Score, a.cfg.ResignScore)
+	drawn := scoreShowsDraw(rec.Info.Score, a.cfg.DrawScore)
+
+	if !rec.HasInfo {
+		// No info this ply: reset draw streak (we can't claim a peaceful
+		// position we didn't observe). Resign streaks are per-side and
+		// only update on the moving side's plies, so leave them.
+		a.drawStreak = 0
+	} else {
+		if drawn {
+			a.drawStreak++
+		} else {
+			a.drawStreak = 0
+		}
+	}
+
+	if rec.Side == chess.White {
+		if losing {
+			a.resignStreakWhite++
+		} else if rec.HasInfo {
+			a.resignStreakWhite = 0
+		}
+	} else {
+		if losing {
+			a.resignStreakBlack++
+		} else if rec.HasInfo {
+			a.resignStreakBlack = 0
+		}
+	}
+
+	if a.cfg.ResignMoves > 0 {
+		if a.resignStreakWhite >= a.cfg.ResignMoves {
+			return chess.BlackWins, chess.ReasonResignation, chess.White, true
+		}
+		if a.resignStreakBlack >= a.cfg.ResignMoves {
+			return chess.WhiteWins, chess.ReasonResignation, chess.Black, true
+		}
+	}
+
+	if a.cfg.DrawMoves > 0 && a.drawStreak >= a.cfg.DrawMoves &&
+		len(a.game.MovesUCI()) >= a.cfg.DrawMinPly {
+		return chess.Drawn, chess.ReasonAdjudication, "", true
+	}
+
+	return chess.Ongoing, chess.ReasonInProgress, "", false
+}
+
+// scoreShowsLoss reports whether the score, from the moving side's POV,
+// indicates that side is losing by at least thresholdCp centipawns or is
+// being mated. Returns false when the score is unset or the threshold is
+// unconfigured.
+func scoreShowsLoss(s uci.Score, thresholdCp int) bool {
+	if thresholdCp <= 0 {
+		return false
+	}
+	if s.Mate != nil {
+		return *s.Mate < 0
+	}
+	if s.Centipawns != nil {
+		return *s.Centipawns <= -thresholdCp
+	}
+	return false
+}
+
+// scoreShowsDraw reports whether the score is within ±thresholdCp and
+// not a mate score. Returns false when the score is unset or the
+// threshold is unconfigured.
+func scoreShowsDraw(s uci.Score, thresholdCp int) bool {
+	if thresholdCp < 0 {
+		return false
+	}
+	if s.Mate != nil {
+		return false
+	}
+	if s.Centipawns == nil {
+		return false
+	}
+	cp := *s.Centipawns
+	if cp < 0 {
+		cp = -cp
+	}
+	return cp <= thresholdCp
 }
 
 func (a *Arbiter) adjudicateForfeit(result *Result, loser chess.Side, loserName string, reason chess.Reason, cause error) {
@@ -364,4 +603,155 @@ func (a *Arbiter) adjudicateDraw(result *Result, reason chess.Reason, cause erro
 	result.Outcome = chess.Drawn
 	result.Reason = reason
 	result.Cause = cause
+}
+
+// AnnotatedPGN renders the finished game as PGN with embedded
+// [%eval ...] and [%clk ...] annotations per ply. Eval is normalized to
+// white's POV.
+func (a *Arbiter) AnnotatedPGN(result *Result) string {
+	var sb strings.Builder
+
+	tag := func(name, value string) {
+		if value == "" {
+			value = "?"
+		}
+		fmt.Fprintf(&sb, "[%s \"%s\"]\n", name, value)
+	}
+
+	tag("Event", a.cfg.Event)
+	tag("Site", a.cfg.Site)
+	if !result.StartedAt.IsZero() {
+		tag("Date", result.StartedAt.Format("2006.01.02"))
+	} else {
+		tag("Date", "")
+	}
+	tag("Round", a.cfg.Round)
+	tag("White", a.cfg.WhiteName)
+	tag("Black", a.cfg.BlackName)
+
+	resultStr := string(result.Outcome)
+	if resultStr == "" || resultStr == string(chess.Ongoing) {
+		resultStr = "*"
+	}
+	tag("Result", resultStr)
+
+	if a.cfg.StartFEN != "" {
+		tag("FEN", a.cfg.StartFEN)
+		tag("SetUp", "1")
+	}
+	if tcStr := formatTimeControlPGN(a.cfg.TimeControl); tcStr != "" {
+		tag("TimeControl", tcStr)
+	}
+	if result.Reason != "" && result.Reason != chess.ReasonInProgress {
+		tag("Termination", string(result.Reason))
+	}
+
+	sb.WriteByte('\n')
+
+	moveNum := a.startMoveNum
+	for i, rec := range result.Moves {
+		if rec.Side == chess.White {
+			fmt.Fprintf(&sb, "%d. ", moveNum)
+		} else if i == 0 {
+			fmt.Fprintf(&sb, "%d... ", moveNum)
+		}
+		sb.WriteString(rec.SAN)
+		if anno := formatAnnotation(rec); anno != "" {
+			fmt.Fprintf(&sb, " {%s}", anno)
+		}
+		if rec.Side == chess.Black {
+			moveNum++
+		}
+		if i+1 < len(result.Moves) {
+			sb.WriteByte(' ')
+		}
+	}
+
+	if len(result.Moves) > 0 {
+		sb.WriteByte(' ')
+	}
+	sb.WriteString(resultStr)
+	sb.WriteByte('\n')
+
+	return sb.String()
+}
+
+func formatAnnotation(rec MoveRecord) string {
+	var parts []string
+	if eval := formatEval(rec.Info.Score, rec.Side); eval != "" {
+		parts = append(parts, "[%eval "+eval+"]")
+	}
+	if rec.ClockAfter > 0 {
+		parts = append(parts, "[%clk "+formatClock(rec.ClockAfter)+"]")
+	}
+	return strings.Join(parts, " ")
+}
+
+// formatEval renders a UCI score in the [%eval ...] convention: white's
+// POV, "+0.42" / "-0.10" for centipawns, "#5" / "#-3" for mate scores.
+func formatEval(s uci.Score, mover chess.Side) string {
+	sign := 1
+	if mover == chess.Black {
+		sign = -1
+	}
+	if s.Mate != nil {
+		m := *s.Mate * sign
+		return fmt.Sprintf("#%d", m)
+	}
+	if s.Centipawns != nil {
+		cp := float64(*s.Centipawns*sign) / 100.0
+		if cp >= 0 {
+			return fmt.Sprintf("+%.2f", cp)
+		}
+		return fmt.Sprintf("%.2f", cp)
+	}
+	return ""
+}
+
+func formatClock(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	totalMs := d.Milliseconds()
+	h := totalMs / 3_600_000
+	totalMs -= h * 3_600_000
+	m := totalMs / 60_000
+	totalMs -= m * 60_000
+	s := totalMs / 1000
+	ms := totalMs % 1000
+	return fmt.Sprintf("%d:%02d:%02d.%03d", h, m, s, ms)
+}
+
+// formatTimeControlPGN renders the active time control in PGN's
+// "TimeControl" tag form. Empty string means no tag should be written.
+func formatTimeControlPGN(tc TimeControl) string {
+	switch {
+	case tc.FixedMovetime > 0:
+		return fmt.Sprintf("movetime/%dms", tc.FixedMovetime.Milliseconds())
+	case tc.FixedNodes > 0:
+		return fmt.Sprintf("nodes/%d", tc.FixedNodes)
+	case tc.FixedDepth > 0:
+		return fmt.Sprintf("depth/%d", tc.FixedDepth)
+	}
+	if tc.Initial == 0 {
+		return ""
+	}
+	base := formatSeconds(tc.Initial)
+	if tc.Increment > 0 {
+		base += "+" + formatSeconds(tc.Increment)
+	}
+	if tc.MovesPerPeriod > 0 {
+		return fmt.Sprintf("%d/%s", tc.MovesPerPeriod, base)
+	}
+	return base
+}
+
+func formatSeconds(d time.Duration) string {
+	if d == 0 {
+		return "0"
+	}
+	if d%time.Second == 0 {
+		return strconv.Itoa(int(d / time.Second))
+	}
+	return strconv.FormatFloat(d.Seconds(), 'f', -1, 64)
 }
