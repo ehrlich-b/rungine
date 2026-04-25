@@ -174,8 +174,8 @@ Wraps `github.com/notnil/chess` with a UCI-oriented API for the arbiter.
 
 ### Scoring
 
-- [ ] Score table per engine (W/D/L, points)
-- [ ] Crosstable (head-to-head matrix)
+- [x] Score table per engine (W/D/L, points) — `BuildStandings` in `internal/tournament/scoring.go`
+- [x] Crosstable (head-to-head matrix) — `BuildCrosstable`
 - [ ] ELO calculation with iterative convergence (Bayesian or Ordo-style)
 - [ ] ELO confidence intervals (Wilson or LOS)
 - [ ] LOS, draw ratio, performance rating
