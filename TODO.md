@@ -153,10 +153,11 @@ Wraps `github.com/notnil/chess` with a UCI-oriented API for the arbiter.
 
 ### Concurrent scheduling (`internal/tournament/scheduler.go`)
 
-- [ ] Run N games in parallel (configurable; default = cores / threads-per-engine)
-- [ ] Per-game engine instances (engines hold state, never share)
-- [ ] Pair queue: scheduler pulls next pairing, allocates engine slots
-- [ ] Resource accounting: total threads, hash, NN backends
+- [x] Run N games in parallel (configurable Concurrency; semaphore-bounded fan-out)
+- [x] Per-game engine instances (engines hold state, never share — EngineFactory spawns fresh per game)
+- [x] Pair queue: scheduler accepts a slice of Pairings and dispatches them in order
+- [x] Per-game lifecycle callbacks (OnGameStart, OnGameComplete) for live progress reporting
+- [ ] Resource accounting: total threads, hash, NN backends across concurrent games
 - [ ] Pause / resume tournament
 - [ ] Resume from on-disk state after process restart
 
