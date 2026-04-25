@@ -318,6 +318,9 @@ func (e *Engine) handleLine(line ParsedLine) {
 		}
 	case "bestmove":
 		bm := line.Data.(BestMove)
+		// Set state to Ready before publishing the move so consumers
+		// that immediately call Go() after receiving see the correct state.
+		e.setState(EngineStateReady)
 		select {
 		case e.bestMoveCh <- bm:
 		default:
@@ -328,7 +331,6 @@ func (e *Engine) handleLine(line ParsedLine) {
 			}
 			e.bestMoveCh <- bm
 		}
-		e.setState(EngineStateReady)
 	}
 }
 

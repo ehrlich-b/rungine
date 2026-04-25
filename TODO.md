@@ -122,13 +122,13 @@ Wraps `github.com/notnil/chess` with a UCI-oriented API for the arbiter.
 
 ### Game arbiter (`internal/tournament/arbiter.go`)
 
-- [ ] `Arbiter` struct: white engine, black engine, position, clocks, adjudication rules
-- [ ] Game loop: position cmd, go with appropriate clock, await bestmove
-- [ ] Per-side clock tracking with increment
-- [ ] Validate engine bestmove against legal moves (illegal move = forfeit)
-- [ ] Detect time forfeit
-- [ ] Detect engine crash mid-game (forfeit, optionally restart per rules)
-- [ ] Detect natural termination (mate / stalemate / 50-move / threefold / insufficient)
+- [x] `Arbiter` struct: white engine, black engine, position, clocks, adjudication rules
+- [x] Game loop: position cmd, go with appropriate clock, await bestmove
+- [x] Per-side clock tracking with increment
+- [x] Validate engine bestmove against legal moves (illegal move = forfeit)
+- [x] Detect time forfeit
+- [x] Detect engine crash mid-game (forfeit, optionally restart per rules)
+- [x] Detect natural termination (mate / stalemate / 50-move / threefold / insufficient)
 - [ ] Resign adjudication (eval below threshold for N consecutive plies)
 - [ ] Draw adjudication (eval near zero for N consecutive plies, after min ply)
 - [ ] Emit move-by-move events for live view (move, eval, depth, time used, clocks remaining)
