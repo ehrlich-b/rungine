@@ -1,10 +1,10 @@
-import './style.css';
-import './app.css';
+import './styles/global.css';
+import { mount } from 'svelte';
+import App from './App.svelte';
 
-document.querySelector('#app')!.innerHTML = `
-    <div class="container">
-        <h1>Rungine</h1>
-        <p>UCI Chess Engine Client</p>
-        <p class="status">Backend connected</p>
-    </div>
-`;
+const target = document.getElementById('app');
+if (!target) {
+  throw new Error('mount target #app not found');
+}
+
+export default mount(App, { target });

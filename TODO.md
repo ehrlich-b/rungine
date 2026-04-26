@@ -192,10 +192,10 @@ Wraps `github.com/notnil/chess` with a UCI-oriented API for the arbiter.
 
 ### Frontend stack
 
-- [ ] Svelte + Vite + TypeScript (or replace once spiked)
-- [ ] App shell: top nav (Tournaments, Engines, Settings), main pane, status bar
-- [ ] Wails event subscription helpers
-- [ ] Dark theme default, light theme optional
+- [x] Svelte + Vite + TypeScript (Svelte 5 runes, vite 5)
+- [x] App shell: top nav (Tournaments, Engines, Settings), main pane, status bar
+- [x] Wails event subscription helpers — `frontend/src/lib/wails.ts`
+- [x] Dark theme default, light theme optional — `frontend/src/lib/theme.ts`, `styles/theme.css`
 - [ ] Accent color setting
 
 ### Chessboard component
@@ -268,12 +268,12 @@ The "world-class" half. TCEC-quality live broadcast.
 
 ## Phase 9: Engine Library UI
 
-- [ ] List engines from registry (installed vs available)
-- [ ] One-click install with progress bar
-- [ ] CPU feature display ("your CPU: AVX2, BMI2 — selecting bmi2 build")
+- [x] List engines from registry (installed vs available) — `frontend/src/views/Engines.svelte`
+- [x] One-click install (progress shown as text; graphical bar still TODO)
+- [x] CPU feature display (StatusBar + Settings)
 - [ ] Configure UCI options (spin / check / combo / string editors)
 - [ ] Engine profiles (analysis, tournament, quick)
-- [ ] Remove installed engine
+- [x] Remove installed engine
 - [ ] Add custom engine (browse for binary, run UCI to discover options)
 
 ---
