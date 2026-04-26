@@ -147,7 +147,7 @@ Wraps `github.com/notnil/chess` with a UCI-oriented API for the arbiter.
 
 ### Opening selection
 
-- [ ] Load opening PGN file, sample positions at configurable ply
+- [x] Load opening PGN file, sample positions at configurable ply — `LoadOpeningsFromPGN` in `internal/tournament/openings.go`
 - [ ] Polyglot `.bin` book reader (Zobrist lookup, weighted random)
 - [x] Pair mode: same opening played twice with colors flipped (in `formats.go` via `PairMode`)
 

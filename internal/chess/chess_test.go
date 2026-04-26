@@ -32,6 +32,33 @@ func TestPushUCIBasic(t *testing.T) {
 	}
 }
 
+func TestPushSANBasic(t *testing.T) {
+	g := NewGame()
+	moves := []string{"e4", "e5", "Nf3", "Nc6"}
+	for _, san := range moves {
+		if err := g.PushSAN(san); err != nil {
+			t.Fatalf("PushSAN(%q): %v", san, err)
+		}
+	}
+	uci := g.MovesUCI()
+	wantUCI := []string{"e2e4", "e7e5", "g1f3", "b8c6"}
+	if len(uci) != len(wantUCI) {
+		t.Fatalf("MovesUCI len = %d, want %d", len(uci), len(wantUCI))
+	}
+	for i, m := range uci {
+		if m != wantUCI[i] {
+			t.Errorf("MovesUCI[%d] = %q, want %q", i, m, wantUCI[i])
+		}
+	}
+}
+
+func TestPushSANIllegal(t *testing.T) {
+	g := NewGame()
+	if err := g.PushSAN("Nf6"); err == nil {
+		t.Error("PushSAN(Nf6) on starting position should fail (white to move)")
+	}
+}
+
 func TestPushUCIIllegalMove(t *testing.T) {
 	g := NewGame()
 	err := g.PushUCI("e2e5")

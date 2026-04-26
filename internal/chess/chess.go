@@ -87,6 +87,24 @@ func (g *Game) PushUCI(uci string) error {
 	return nil
 }
 
+// PushSAN applies a move given in standard algebraic notation
+// (e.g., "Nf3", "O-O", "exd5"). It returns an error if the game is
+// finished or the move is illegal/ambiguous in the current position.
+func (g *Game) PushSAN(san string) error {
+	if g.Outcome() != Ongoing {
+		return errors.New("chess: game is over")
+	}
+	move, err := notchess.AlgebraicNotation{}.Decode(g.inner.Position(), san)
+	if err != nil {
+		return fmt.Errorf("chess: decode %q: %w", san, err)
+	}
+	if err := g.inner.Move(move); err != nil {
+		return fmt.Errorf("chess: illegal move %q: %w", san, err)
+	}
+	g.autoClaimDraws()
+	return nil
+}
+
 // autoClaimDraws claims a draw if the game is currently eligible for one
 // under the fifty-move rule or threefold repetition.
 func (g *Game) autoClaimDraws() {
