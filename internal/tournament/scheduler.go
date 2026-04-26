@@ -122,6 +122,11 @@ type SchedulerConfig struct {
 	// further pairings; in-flight games complete normally. Pairings
 	// that never start get ErrSchedulerStopped on their GameOutcome.Err.
 	ShouldStop func(o GameOutcome) bool
+
+	// OnGameMove, when non-nil, is called after each move played in any
+	// in-flight game. It runs on the worker goroutine for that game and
+	// must not block.
+	OnGameMove func(p Pairing, rec MoveRecord, fen string)
 }
 
 // GameOutcome records one completed game.
@@ -219,6 +224,14 @@ func (s *Scheduler) runOne(ctx context.Context, p Pairing) GameOutcome {
 	}
 	defer black.Stop()
 
+	var onMove func(rec MoveRecord, fen string)
+	if s.cfg.OnGameMove != nil {
+		pairing := p
+		hook := s.cfg.OnGameMove
+		onMove = func(rec MoveRecord, fen string) {
+			hook(pairing, rec, fen)
+		}
+	}
 	arb, err := New(Config{
 		White:       white.Engine,
 		Black:       black.Engine,
@@ -237,6 +250,7 @@ func (s *Scheduler) runOne(ctx context.Context, p Pairing) GameOutcome {
 		Event:       s.cfg.Event,
 		Site:        s.cfg.Site,
 		Round:       p.Round,
+		OnMove:      onMove,
 	})
 	if err != nil {
 		out.Err = fmt.Errorf("arbiter: %w", err)

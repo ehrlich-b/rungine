@@ -96,6 +96,11 @@ type Config struct {
 	Event string
 	Site  string
 	Round string
+
+	// OnMove, when non-nil, is invoked after each move is appended to the
+	// game record. The provided FEN reflects the position after the move.
+	// The callback runs on the arbiter's goroutine and must not block.
+	OnMove func(rec MoveRecord, fen string)
 }
 
 // MoveRecord captures one ply's move and the engine's last reported
@@ -302,6 +307,9 @@ func (a *Arbiter) Run(ctx context.Context) (*Result, error) {
 
 		rec := a.recordMove(side, bm.Move, info, hasInfo, elapsed)
 		result.Moves = append(result.Moves, rec)
+		if a.cfg.OnMove != nil {
+			a.cfg.OnMove(rec, a.game.FEN())
+		}
 
 		if outcome, reason, loser, ok := a.checkAdjudication(rec); ok {
 			switch outcome {

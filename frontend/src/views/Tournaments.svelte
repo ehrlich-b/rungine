@@ -3,6 +3,7 @@
   import { App, on } from '../lib/wails';
   import { navigate } from '../lib/router';
   import GameView from '../components/GameView.svelte';
+  import LiveGames from '../components/LiveGames.svelte';
   import type { registry, main } from '../../wailsjs/go/models';
 
   type Format = 'match' | 'round-robin' | 'gauntlet';
@@ -251,6 +252,12 @@
                 {summary.gamesPlayed} / {summary.gamesTotal} games
               </span>
             </div>
+
+            {#if summary.status === 'running'}
+              <LiveGames
+                tournamentId={summary.id}
+                onSelectGame={(n) => openGame(summary!.id, n)} />
+            {/if}
 
             {#if summary.standings.length > 0}
               <h3>Standings</h3>

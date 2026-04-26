@@ -429,6 +429,28 @@ func (m *TournamentManager) Start(spec TournamentSpec) (string, error) {
 				"pgn":          o.PGN,
 			})
 		},
+		OnGameMove: func(p tournament.Pairing, rec tournament.MoveRecord, fen string) {
+			payload := map[string]interface{}{
+				"tournamentId": id,
+				"gameNumber":   p.GameNumber,
+				"ply":          rec.Ply,
+				"side":         string(rec.Side),
+				"uci":          rec.UCI,
+				"san":          rec.SAN,
+				"fen":          fen,
+				"depth":        rec.Info.Depth,
+				"elapsedMs":    rec.Elapsed.Milliseconds(),
+				"clockAfterMs": rec.ClockAfter.Milliseconds(),
+			}
+			if rec.HasInfo {
+				if rec.Info.Score.Mate != nil {
+					payload["evalMate"] = *rec.Info.Score.Mate
+				} else if rec.Info.Score.Centipawns != nil {
+					payload["evalCp"] = *rec.Info.Score.Centipawns
+				}
+			}
+			m.emit("tournament:move", payload)
+		},
 	}
 
 	sch, err := tournament.NewScheduler(cfg)
