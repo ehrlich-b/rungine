@@ -276,7 +276,7 @@ The "world-class" half. TCEC-quality live broadcast.
 - [x] Configure UCI options (spin / check / combo / string / button editors)
 - [ ] Engine profiles (analysis, tournament, quick)
 - [x] Remove installed engine
-- [ ] Add custom engine (browse for binary, run UCI to discover options)
+- [x] Add custom engine (browse for binary, validates via UCI handshake) — `App.PickEngineBinary` + `App.AddCustomEngine`
 
 ---
 

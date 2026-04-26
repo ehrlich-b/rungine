@@ -4,6 +4,8 @@ import {main} from '../models';
 import {uci} from '../models';
 import {registry} from '../models';
 
+export function AddCustomEngine(arg1:string,arg2:string):Promise<registry.InstalledEngine>;
+
 export function GetCPUFeatures():Promise<string>;
 
 export function GetEngineOptionConfig(arg1:string):Promise<main.EngineOptionConfig>;
@@ -19,6 +21,8 @@ export function GetTournamentPGN(arg1:string):Promise<string>;
 export function InstallEngine(arg1:string):Promise<void>;
 
 export function ListAvailableEngines():Promise<Array<registry.EngineInfo>>;
+
+export function PickEngineBinary():Promise<string>;
 
 export function ListEngines():Promise<Array<uci.EngineInfo>>;
 

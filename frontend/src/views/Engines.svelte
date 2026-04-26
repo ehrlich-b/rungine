@@ -13,6 +13,8 @@
   let error = $state<string | null>(null);
   let progress = $state<Record<string, string>>({});
   let configuring = $state<string | null>(null);
+  let addingCustom = $state(false);
+  let customName = $state('');
 
   async function refresh() {
     error = null;
@@ -59,6 +61,25 @@
     }
   }
 
+  async function addCustom() {
+    error = null;
+    addingCustom = true;
+    try {
+      const path = await App.PickEngineBinary();
+      if (!path) {
+        addingCustom = false;
+        return;
+      }
+      await App.AddCustomEngine(path, customName.trim());
+      customName = '';
+      await refresh();
+    } catch (e) {
+      error = `Add custom engine failed: ${e}`;
+    } finally {
+      addingCustom = false;
+    }
+  }
+
   onMount(() => {
     refresh();
 
@@ -93,6 +114,20 @@
   {/if}
 
   <h2>Installed</h2>
+  <div class="custom-row">
+    <input
+      type="text"
+      class="custom-name"
+      placeholder="Display name (optional)"
+      bind:value={customName}
+      spellcheck="false" />
+    <button
+      onclick={addCustom}
+      disabled={busyId !== null || addingCustom}>
+      {addingCustom ? 'Adding…' : 'Add custom engine'}
+    </button>
+  </div>
+
   {#if installed.length === 0}
     <p class="subtle">No engines installed yet — install one below to get started.</p>
   {:else}
@@ -281,5 +316,16 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
+  }
+
+  .custom-row {
+    display: flex;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-sm);
+  }
+
+  .custom-name {
+    flex: 1;
+    min-width: 0;
   }
 </style>

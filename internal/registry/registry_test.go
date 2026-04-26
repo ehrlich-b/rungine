@@ -4,6 +4,23 @@ import (
 	"testing"
 )
 
+func TestSlugify(t *testing.T) {
+	cases := map[string]string{
+		"Stockfish 17":          "stockfish-17",
+		"  My Engine  ":         "my-engine",
+		"Engine!@#$%^Three":     "engine-three",
+		"":                      "",
+		"---":                   "",
+		"AlphaBeta_v2.1":        "alphabeta-v2-1",
+		"unicode-ñame":          "unicode-ame",
+	}
+	for in, want := range cases {
+		if got := slugify(in); got != want {
+			t.Errorf("slugify(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestLoadRegistry(t *testing.T) {
 	tomlData := []byte(`
 [meta]

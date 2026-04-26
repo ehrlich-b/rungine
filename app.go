@@ -219,6 +219,45 @@ func (a *App) UninstallEngine(engineID string) error {
 	return a.installer.Uninstall(engineID)
 }
 
+// PickEngineBinary opens an OS file dialog so the user can select a
+// UCI engine binary. Returns the absolute path, or an empty string if
+// the user cancelled.
+func (a *App) PickEngineBinary() (string, error) {
+	if a.ctx == nil {
+		return "", fmt.Errorf("no app context yet")
+	}
+	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "Select UCI engine binary",
+	})
+	if err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+// AddCustomEngine registers an external UCI binary as an installed
+// engine. binaryPath must point to an executable that responds to the
+// uci handshake. displayName is shown in the UI; if empty, the binary
+// filename (sans extension) is used.
+func (a *App) AddCustomEngine(binaryPath, displayName string) (registry.InstalledEngine, error) {
+	if a.installer == nil {
+		return registry.InstalledEngine{}, fmt.Errorf("installer not available")
+	}
+	if a.ctx == nil {
+		return registry.InstalledEngine{}, fmt.Errorf("no app context yet")
+	}
+	installed, err := a.installer.RegisterExternal(a.ctx, binaryPath, displayName)
+	if err != nil {
+		return registry.InstalledEngine{}, err
+	}
+	if err := a.engines.RegisterEngine(installed.ID, installed.BinaryPath); err != nil {
+		// Roll back the on-disk record so the UI doesn't show a half-broken entry.
+		_ = a.installer.Uninstall(installed.ID)
+		return registry.InstalledEngine{}, fmt.Errorf("register engine: %w", err)
+	}
+	return *installed, nil
+}
+
 // GetCPUFeatures returns the detected CPU features.
 func (a *App) GetCPUFeatures() string {
 	return registry.DetectCPUFeatures().FeatureString()

@@ -621,6 +621,89 @@ func (i *Installer) Uninstall(engineID string) error {
 	return os.RemoveAll(engineDir)
 }
 
+// RegisterExternal records an existing on-disk UCI binary as an
+// installed engine. The binary is not copied — the InstalledEngine
+// entry just references its absolute path. displayName is the name
+// shown in the UI; if empty, the binary's filename is used.
+//
+// The binary is validated via the standard uci/uciok handshake before
+// the entry is saved, so a non-UCI binary is rejected up front.
+func (i *Installer) RegisterExternal(ctx context.Context, binaryPath, displayName string) (*InstalledEngine, error) {
+	abs, err := filepath.Abs(binaryPath)
+	if err != nil {
+		return nil, fmt.Errorf("resolve path: %w", err)
+	}
+	info, err := os.Stat(abs)
+	if err != nil {
+		return nil, fmt.Errorf("stat binary: %w", err)
+	}
+	if info.IsDir() {
+		return nil, fmt.Errorf("not a file: %s", abs)
+	}
+
+	if err := i.validate(ctx, abs); err != nil {
+		return nil, err
+	}
+
+	if displayName == "" {
+		displayName = strings.TrimSuffix(filepath.Base(abs), filepath.Ext(abs))
+	}
+
+	engineID := i.uniqueCustomID(displayName)
+	engineDir := filepath.Join(i.installDir, engineID)
+	if err := os.MkdirAll(engineDir, 0755); err != nil {
+		return nil, fmt.Errorf("create engine dir: %w", err)
+	}
+	installed := &InstalledEngine{
+		ID:          engineID,
+		RegistryID:  "", // custom, not in registry
+		Name:        displayName,
+		Version:     "custom",
+		BinaryPath:  abs,
+		InstalledAt: time.Now().Format(time.RFC3339),
+		BuildKey:    "external",
+	}
+	configPath := filepath.Join(engineDir, "config.toml")
+	if err := i.saveConfig(configPath, installed); err != nil {
+		return nil, err
+	}
+	return installed, nil
+}
+
+// uniqueCustomID slugifies displayName and appends a numeric suffix if
+// the resulting ID already exists.
+func (i *Installer) uniqueCustomID(displayName string) string {
+	slug := slugify(displayName)
+	if slug == "" {
+		slug = "custom"
+	}
+	id := "custom-" + slug
+	for n := 2; ; n++ {
+		if _, err := os.Stat(filepath.Join(i.installDir, id)); os.IsNotExist(err) {
+			return id
+		}
+		id = fmt.Sprintf("custom-%s-%d", slug, n)
+	}
+}
+
+func slugify(s string) string {
+	var b strings.Builder
+	prevDash := false
+	for _, r := range strings.ToLower(s) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+			prevDash = false
+		default:
+			if !prevDash && b.Len() > 0 {
+				b.WriteByte('-')
+				prevDash = true
+			}
+		}
+	}
+	return strings.TrimRight(b.String(), "-")
+}
+
 // execCommandContext creates an exec.Cmd for engine validation.
 var execCommandContext = func(ctx context.Context, name string) *execCmd {
 	return &execCmd{ctx: ctx, name: name}
