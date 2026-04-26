@@ -158,11 +158,12 @@ export namespace main {
 	    evalMate?: number;
 	    elapsedMs: number;
 	    clockAfterMs: number;
-	
+	    check?: boolean;
+
 	    static createFrom(source: any = {}) {
 	        return new MoveDetail(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.ply = source["ply"];
@@ -175,6 +176,7 @@ export namespace main {
 	        this.evalMate = source["evalMate"];
 	        this.elapsedMs = source["elapsedMs"];
 	        this.clockAfterMs = source["clockAfterMs"];
+	        this.check = source["check"];
 	    }
 	}
 	export class GameDetail {

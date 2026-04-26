@@ -120,6 +120,7 @@ type MoveRecord struct {
 	HasInfo    bool          // false when no info line was received
 	Elapsed    time.Duration // wall clock used to choose this move
 	ClockAfter time.Duration // remaining clock after the move (0 in fixed mode)
+	Check      bool          // resulting position has the side-to-move in check
 }
 
 // Result records the outcome of a single arbitrated game.
@@ -552,6 +553,7 @@ func (a *Arbiter) recordMove(side chess.Side, move string, info uci.AnalysisInfo
 		HasInfo:    hasInfo,
 		Elapsed:    elapsed,
 		ClockAfter: clock,
+		Check:      a.game.InCheck(),
 	}
 }
 

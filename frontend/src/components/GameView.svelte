@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import Board from './Board.svelte';
   import EvalGraph from './EvalGraph.svelte';
-  import { STARTING_FEN } from '../lib/chess';
+  import { STARTING_FEN, parseFEN, coordsToSquare } from '../lib/chess';
   import { on } from '../lib/wails';
   import type { main } from '../../wailsjs/go/models';
 
@@ -185,6 +185,32 @@
     const arrow = pvToArrow(info, 'var(--accent)');
     return arrow ? [arrow] : [];
   });
+
+  function findKingSquare(fen: string, color: 'w' | 'b'): string | null {
+    try {
+      const pos = parseFEN(fen);
+      const target = color === 'w' ? 'K' : 'k';
+      for (let r = 0; r < 8; r++) {
+        for (let f = 0; f < 8; f++) {
+          if (pos.board[r][f] === target) {
+            return coordsToSquare(f, r);
+          }
+        }
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+
+  let checkSquare = $derived.by<string | null>(() => {
+    if (currentPly === 0) return null;
+    const m = detail.moves[currentPly - 1];
+    if (!m || !m.check) return null;
+    // Side to move after this ply is the side that just received check.
+    const kingOf: 'w' | 'b' = m.side === 'w' ? 'b' : 'w';
+    return findKingSquare(m.fen, kingOf);
+  });
 </script>
 
 <div class="game-view">
@@ -222,7 +248,7 @@
 
   <div class="layout">
     <div class="board-area">
-      <Board fen={position} {flipped} {lastMove} arrows={boardArrows} size={56} />
+      <Board fen={position} {flipped} {lastMove} arrows={boardArrows} {checkSquare} size={56} />
       <div class="nav">
         <button onclick={() => go(0)} title="Start (Home)">⏮</button>
         <button onclick={() => go(currentPly - 1)} title="Previous (←)">◀</button>

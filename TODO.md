@@ -204,7 +204,7 @@ Wraps `github.com/notnil/chess` with a UCI-oriented API for the arbiter.
 - [ ] SVG piece set (permissive license — Cburnett or Merida)
 - [ ] Render position from FEN
 - [ ] Last-move highlight
-- [ ] Check highlight
+- [x] Check highlight (red radial overlay on king square when in check)
 - [ ] Arrow + circle annotations (for engine PVs)
 - [ ] Flip board
 - [ ] Animated piece transitions during replay

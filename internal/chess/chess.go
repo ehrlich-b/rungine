@@ -173,6 +173,18 @@ func (g *Game) SideToMove() Side {
 	return Black
 }
 
+// InCheck reports whether the side to move is currently in check. Returns
+// false when no moves have been played (notnil/chess only sets the Check
+// tag on Move records, so a FEN-loaded position with the side already in
+// check reads as false until a move is made).
+func (g *Game) InCheck() bool {
+	moves := g.inner.Moves()
+	if len(moves) == 0 {
+		return false
+	}
+	return moves[len(moves)-1].HasTag(notchess.Check)
+}
+
 // HalfmoveClock returns plies since the last capture or pawn move.
 func (g *Game) HalfmoveClock() int {
 	return g.inner.Position().HalfMoveClock()

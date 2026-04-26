@@ -28,6 +28,8 @@
     size?: number;
     /** Arrow overlays (engine PV, user annotations). */
     arrows?: Arrow[];
+    /** Square holding the king of the side currently in check, e.g. "e1". */
+    checkSquare?: string | null;
     onSquareClick?: (square: string) => void;
   };
 
@@ -38,6 +40,7 @@
     lastMove = null,
     size = 56,
     arrows = [],
+    checkSquare = null,
     onSquareClick,
   }: Props = $props();
 
@@ -137,12 +140,14 @@
           {@const piece = position.board[r][f]}
           {@const light = isLight(f, r)}
           {@const isHighlighted = highlights.has(sq)}
+          {@const isCheck = checkSquare === sq}
           <button
             type="button"
             class="square"
             class:light
             class:dark={!light}
             class:highlight={isHighlighted}
+            class:check={isCheck}
             data-square={sq}
             tabindex={onSquareClick ? 0 : -1}
             disabled={!onSquareClick}
@@ -260,6 +265,19 @@
     position: absolute;
     inset: 0;
     background: var(--highlight);
+    pointer-events: none;
+  }
+
+  .square.check::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      circle at center,
+      rgba(220, 38, 38, 0.85) 0%,
+      rgba(220, 38, 38, 0.5) 35%,
+      rgba(220, 38, 38, 0) 70%
+    );
     pointer-events: none;
   }
 

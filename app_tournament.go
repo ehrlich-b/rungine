@@ -94,6 +94,7 @@ type MoveDetail struct {
 	EvalMate     *int   `json:"evalMate,omitempty"`
 	ElapsedMs    int64  `json:"elapsedMs"`
 	ClockAfterMs int64  `json:"clockAfterMs"`
+	Check        bool   `json:"check,omitempty"`
 }
 
 // GameDetail is everything the GUI needs to replay a single game.
@@ -549,6 +550,7 @@ func (m *TournamentManager) Start(spec TournamentSpec) (string, error) {
 				"depth":        rec.Info.Depth,
 				"elapsedMs":    rec.Elapsed.Milliseconds(),
 				"clockAfterMs": rec.ClockAfter.Milliseconds(),
+				"check":        rec.Check,
 			}
 			if rec.HasInfo {
 				if rec.Info.Score.Mate != nil {
@@ -801,6 +803,7 @@ func buildGameDetail(o tournament.GameOutcome) (GameDetail, error) {
 			UCI: mr.UCI, SAN: mr.SAN, FEN: game.FEN(),
 			ElapsedMs:    mr.Elapsed.Milliseconds(),
 			ClockAfterMs: mr.ClockAfter.Milliseconds(),
+			Check:        game.InCheck(),
 		}
 		if mr.HasInfo {
 			md.Depth = mr.Info.Depth

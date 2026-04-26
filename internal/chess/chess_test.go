@@ -302,3 +302,28 @@ func TestPGN(t *testing.T) {
 		t.Errorf("PGN() = %q, missing expected moves", pgn)
 	}
 }
+
+func TestInCheck(t *testing.T) {
+	g := NewGame()
+	if g.InCheck() {
+		t.Error("InCheck() on starting position should be false")
+	}
+	if err := g.PushUCI("e2e4"); err != nil {
+		t.Fatalf("PushUCI(e2e4): %v", err)
+	}
+	if g.InCheck() {
+		t.Error("InCheck() after 1.e4 should be false")
+	}
+	// Set up a position one move shy of Qh4# and play the checking move.
+	fen := "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2"
+	g2, err := FromFEN(fen)
+	if err != nil {
+		t.Fatalf("FromFEN: %v", err)
+	}
+	if err := g2.PushUCI("d8h4"); err != nil {
+		t.Fatalf("PushUCI(d8h4): %v", err)
+	}
+	if !g2.InCheck() {
+		t.Error("InCheck() after Qh4# should be true (white in check)")
+	}
+}
