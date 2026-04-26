@@ -200,23 +200,24 @@ Wraps `github.com/notnil/chess` with a UCI-oriented API for the arbiter.
 
 ### Chessboard component
 
-- [ ] SVG board, 8x8 squares, file/rank labels (toggleable)
-- [ ] SVG piece set (permissive license — Cburnett or Merida)
-- [ ] Render position from FEN
-- [ ] Last-move highlight
+- [x] 8x8 board with toggleable file/rank labels — CSS grid in `Board.svelte` (SVG would be a re-implementation, not a feature)
+- [ ] SVG piece set (permissive license — Cburnett or Merida) — currently Unicode glyphs
+- [x] Render position from FEN
+- [x] Last-move highlight
 - [x] Check highlight (red radial overlay on king square when in check)
-- [ ] Arrow + circle annotations (for engine PVs)
-- [ ] Flip board
+- [x] Arrow annotations (engine PVs) — circles still TODO
+- [ ] Circle annotations (square markers for analysis)
+- [x] Flip board (`flipped` prop + 'F' shortcut)
 - [x] Animated piece transitions during replay (150ms slide via Web Animations API on the move's destination)
 
 ### Move list / PGN navigation
 
-- [ ] Render mainline in SAN
-- [ ] Click move to jump
-- [ ] Keyboard navigation (arrow keys, home/end)
-- [ ] Variation rendering (collapsible)
-- [ ] NAG glyphs
-- [ ] Inline engine annotations (eval, depth, clock)
+- [x] Render mainline in SAN — `GameView.svelte` two-column move pairs
+- [x] Click move to jump
+- [x] Keyboard navigation (← → Home End, also F to flip)
+- [ ] Variation rendering (collapsible) — N/A for tournament games (no variations); deferred
+- [ ] NAG glyphs — N/A for tournament games (no NAGs); deferred
+- [x] Inline engine annotations (eval, depth, clock)
 
 ---
 
