@@ -10,6 +10,10 @@ export function ApplyEngineProfile(arg1, arg2) {
   return window['go']['main']['App']['ApplyEngineProfile'](arg1, arg2);
 }
 
+export function DeleteTournament(arg1) {
+  return window['go']['main']['App']['DeleteTournament'](arg1);
+}
+
 export function ListEngineProfiles(arg1) {
   return window['go']['main']['App']['ListEngineProfiles'](arg1);
 }

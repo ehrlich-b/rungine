@@ -9,6 +9,7 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"rungine/internal/database"
 	"rungine/internal/registry"
 	"rungine/internal/uci"
 )
@@ -22,6 +23,7 @@ type App struct {
 	engines     *uci.EngineManager
 	registry    *registry.Manager
 	installer   *registry.Installer
+	db          *database.DB
 	tournaments *TournamentManager
 }
 
@@ -40,11 +42,17 @@ func NewApp() *App {
 		slog.Warn("failed to create installer", "err", err)
 	}
 
+	db, err := database.Open("")
+	if err != nil {
+		slog.Warn("failed to open database", "err", err)
+	}
+
 	return &App{
 		engines:     uci.NewEngineManager(),
 		registry:    regMgr,
 		installer:   installer,
-		tournaments: newTournamentManager(installer),
+		db:          db,
+		tournaments: newTournamentManager(installer, db),
 	}
 }
 
@@ -69,6 +77,9 @@ func (a *App) startup(ctx context.Context) {
 
 	if a.tournaments != nil {
 		a.tournaments.bindContext(ctx)
+		if err := a.tournaments.hydrateFromDB(ctx); err != nil {
+			slog.Warn("failed to hydrate tournaments from db", "err", err)
+		}
 	}
 
 	// Auto-register installed engines
@@ -97,6 +108,9 @@ func (a *App) loadInstalledEngines() {
 // shutdown is called when the app is closing.
 func (a *App) shutdown(_ context.Context) {
 	a.engines.Shutdown()
+	if a.db != nil {
+		_ = a.db.Close()
+	}
 }
 
 // RegisterEngine registers a new engine with the manager.
@@ -411,6 +425,14 @@ func (a *App) StopTournament(id string) error {
 		return nil
 	}
 	return a.tournaments.Stop(id)
+}
+
+// DeleteTournament removes a finished tournament from history.
+func (a *App) DeleteTournament(id string) error {
+	if a.tournaments == nil {
+		return nil
+	}
+	return a.tournaments.Delete(id)
 }
 
 // GetTournament returns a snapshot of one tournament.

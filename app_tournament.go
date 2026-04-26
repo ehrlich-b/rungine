@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"rungine/internal/chess"
+	"rungine/internal/database"
 	"rungine/internal/registry"
 	"rungine/internal/tournament"
 	"rungine/internal/uci"
@@ -313,13 +315,15 @@ type TournamentManager struct {
 	runs      map[string]*tournamentRun
 	order     []string
 	installer *registry.Installer
+	db        *database.DB
 	ctx       context.Context
 }
 
-func newTournamentManager(installer *registry.Installer) *TournamentManager {
+func newTournamentManager(installer *registry.Installer, db *database.DB) *TournamentManager {
 	return &TournamentManager{
 		runs:      map[string]*tournamentRun{},
 		installer: installer,
+		db:        db,
 	}
 }
 
@@ -490,6 +494,10 @@ func (m *TournamentManager) Start(spec TournamentSpec) (string, error) {
 	m.order = append(m.order, id)
 	m.mu.Unlock()
 
+	if err := m.persistTournamentHeader(run); err != nil {
+		slog.Warn("persist tournament header", "id", id, "err", err)
+	}
+
 	sprtEnabled := spec.Format == "match" && spec.SprtAlpha > 0 && spec.SprtBeta > 0
 	candidateName := ""
 	if sprtEnabled && len(engineSpecs) >= 1 {
@@ -520,6 +528,9 @@ func (m *TournamentManager) Start(spec TournamentSpec) (string, error) {
 			run.mu.Lock()
 			run.outcomes = append(run.outcomes, o)
 			run.mu.Unlock()
+			if err := m.persistGame(id, o); err != nil {
+				slog.Warn("persist game", "tournament", id, "game", o.Pairing.GameNumber, "err", err)
+			}
 			m.emit("tournament:gameComplete", map[string]interface{}{
 				"tournamentId": id,
 				"row":          gameOutcomeRow(o),
@@ -638,6 +649,9 @@ func (m *TournamentManager) Start(spec TournamentSpec) (string, error) {
 		}
 		final := run.status
 		run.mu.Unlock()
+		if err := m.persistTournamentFinal(run); err != nil {
+			slog.Warn("persist tournament final", "id", id, "err", err)
+		}
 		m.emit("tournament:done", map[string]interface{}{
 			"tournamentId": id,
 			"status":       final,
@@ -645,6 +659,38 @@ func (m *TournamentManager) Start(spec TournamentSpec) (string, error) {
 	}()
 
 	return id, nil
+}
+
+// Delete removes a finished tournament from in-memory state and the
+// database. Returns an error if the tournament is still running.
+func (m *TournamentManager) Delete(id string) error {
+	m.mu.Lock()
+	run, ok := m.runs[id]
+	m.mu.Unlock()
+	if !ok {
+		return fmt.Errorf("tournament not found: %s", id)
+	}
+	run.mu.Lock()
+	status := run.status
+	run.mu.Unlock()
+	if status == "running" {
+		return fmt.Errorf("cannot delete running tournament %s; stop it first", id)
+	}
+	if m.db != nil {
+		if err := m.db.DeleteTournament(context.Background(), id); err != nil && !errors.Is(err, database.ErrNotFound) {
+			return fmt.Errorf("delete tournament: %w", err)
+		}
+	}
+	m.mu.Lock()
+	delete(m.runs, id)
+	for i, oid := range m.order {
+		if oid == id {
+			m.order = append(m.order[:i], m.order[i+1:]...)
+			break
+		}
+	}
+	m.mu.Unlock()
+	return nil
 }
 
 // Stop cancels a running tournament.

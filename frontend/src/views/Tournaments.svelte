@@ -292,6 +292,81 @@
     }
   }
 
+  async function deleteTournament(id: string) {
+    if (!confirm(`Delete tournament ${id} and all its games?`)) return;
+    try {
+      await App.DeleteTournament(id);
+      tournaments = (await App.ListTournaments()) ?? [];
+      if (id === activeTournamentId) {
+        activeTournamentId = tournaments.length > 0
+          ? tournaments[tournaments.length - 1].id
+          : null;
+        summary = activeTournamentId
+          ? await App.GetTournament(activeTournamentId)
+          : null;
+      }
+    } catch (e) {
+      error = `Delete failed: ${e}`;
+    }
+  }
+
+  function reRunTournament(t: main.TournamentSummary) {
+    const sp = t.spec as any;
+    if (!sp) return;
+    format = (sp.format as Format) ?? format;
+    games = sp.games ?? games;
+    concurrency = sp.concurrency ?? concurrency;
+    pairMode = !!sp.pairMode;
+    startFen = sp.startFen ?? '';
+    if (sp.tcInitialMs > 0) {
+      tcMode = 'tplus';
+      tcInitialSec = sp.tcInitialMs / 1000;
+      tcIncrementSec = (sp.tcIncrementMs ?? 0) / 1000;
+    } else if (sp.timeControlMs > 0) {
+      tcMode = 'movetime';
+      movetimeMs = sp.timeControlMs;
+    } else if (sp.depthLimit > 0) {
+      tcMode = 'depth';
+      depthLimit = sp.depthLimit;
+    } else if (sp.nodesLimit > 0) {
+      tcMode = 'nodes';
+      nodesLimit = sp.nodesLimit;
+    }
+    sprtEnabled = (sp.sprtAlpha ?? 0) > 0 && (sp.sprtBeta ?? 0) > 0;
+    if (sprtEnabled) {
+      sprtElo0 = sp.sprtElo0 ?? sprtElo0;
+      sprtElo1 = sp.sprtElo1 ?? sprtElo1;
+      sprtAlpha = sp.sprtAlpha ?? sprtAlpha;
+      sprtBeta = sp.sprtBeta ?? sprtBeta;
+    }
+    slots = (sp.engines ?? []).map((e: any, i: number) => ({
+      slotId: `s${Date.now().toString(36)}${i}`,
+      engineId: e.id,
+      name: e.name ?? '',
+      optionsText: e.options
+        ? Object.entries(e.options).map(([k, v]) => `${k}=${v}`).join('\n')
+        : '',
+      showOptions: false,
+    }));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function tournamentWinner(t: main.TournamentSummary): string {
+    if (!t.standings || t.standings.length === 0) return '';
+    const top = [...t.standings].sort((a, b) => b.points - a.points)[0];
+    return top?.name ?? '';
+  }
+
+  function formatTimestamp(iso: string | undefined | null): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleString(undefined, {
+      month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+  }
+
   async function exportPGN() {
     if (!summary) return;
     try {
@@ -788,24 +863,52 @@
           </div>
         {/if}
 
-        {#if tournaments.length > 1}
+        {#if tournaments.length > 0}
           <h3 class="section">All tournaments</h3>
           <div class="tlist">
             {#each tournaments.slice().reverse() as t (t.id)}
-              <button
+              {@const winner = tournamentWinner(t)}
+              {@const ts = t.finishedAt ?? t.startedAt}
+              <div
                 class="tlist-item"
-                class:active={t.id === activeTournamentId}
-                onclick={async () => {
-                  activeTournamentId = t.id;
-                  summary = await App.GetTournament(t.id);
-                }}>
-                <span class="tlist-id">{t.id}</span>
-                <span class="muted">{t.spec.format}</span>
-                <span class="status status-{t.status}">{t.status}</span>
-                <span class="muted small">
-                  {t.gamesPlayed}/{t.gamesTotal}
-                </span>
-              </button>
+                class:active={t.id === activeTournamentId}>
+                <button
+                  type="button"
+                  class="tlist-select"
+                  onclick={async () => {
+                    activeTournamentId = t.id;
+                    summary = await App.GetTournament(t.id);
+                  }}>
+                  <span class="tlist-id">{t.id}</span>
+                  <span class="muted">{t.spec.format}</span>
+                  <span class="status status-{t.status}">{t.status}</span>
+                  <span class="muted small">
+                    {t.gamesPlayed}/{t.gamesTotal}
+                  </span>
+                  {#if winner}
+                    <span class="tlist-winner muted small" title="Leader">{winner}</span>
+                  {/if}
+                  <span class="muted small">{formatTimestamp(ts as any)}</span>
+                </button>
+                <div class="tlist-actions">
+                  <button
+                    type="button"
+                    class="tlist-action"
+                    title="Reload this config into the form"
+                    onclick={() => reRunTournament(t)}>
+                    Re-run
+                  </button>
+                  {#if t.status !== 'running'}
+                    <button
+                      type="button"
+                      class="tlist-action danger"
+                      title="Delete from history"
+                      onclick={() => deleteTournament(t.id)}>
+                      ×
+                    </button>
+                  {/if}
+                </div>
+              </div>
             {/each}
           </div>
         {/if}
@@ -1154,6 +1257,11 @@
     color: var(--danger);
   }
 
+  .status-interrupted {
+    background: rgba(234, 179, 8, 0.15);
+    color: #facc15;
+  }
+
   .progress {
     position: relative;
     height: 8px;
@@ -1324,16 +1432,14 @@
   }
 
   .tlist-item {
-    display: grid;
-    grid-template-columns: auto 1fr auto auto;
-    gap: var(--space-sm);
-    align-items: center;
-    text-align: left;
-    padding: 6px 10px;
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
     background: var(--surface-1);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     font-size: 0.85rem;
+    overflow: hidden;
   }
 
   .tlist-item:hover {
@@ -1342,6 +1448,62 @@
 
   .tlist-item.active {
     border-color: var(--accent);
+  }
+
+  .tlist-select {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: auto auto auto auto 1fr auto;
+    gap: var(--space-sm);
+    align-items: center;
+    text-align: left;
+    padding: 6px 10px;
+    background: transparent;
+    border: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .tlist-select:focus-visible {
+    outline: 1px solid var(--accent);
+    outline-offset: -2px;
+  }
+
+  .tlist-winner {
+    font-style: italic;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tlist-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding-right: 4px;
+  }
+
+  .tlist-action {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    cursor: pointer;
+  }
+
+  .tlist-action:hover {
+    background: var(--surface-2);
+    color: var(--text-primary);
+  }
+
+  .tlist-action.danger:hover {
+    background: rgba(248, 113, 113, 0.15);
+    color: var(--danger);
+    border-color: var(--danger);
   }
 
   .tlist-id {

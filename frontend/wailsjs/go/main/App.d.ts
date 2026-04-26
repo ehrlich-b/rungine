@@ -8,6 +8,8 @@ export function AddCustomEngine(arg1:string,arg2:string):Promise<registry.Instal
 
 export function ApplyEngineProfile(arg1:string,arg2:string):Promise<Record<string, string>>;
 
+export function DeleteTournament(arg1:string):Promise<void>;
+
 export function ListEngineProfiles(arg1:string):Promise<Array<main.EngineProfile>>;
 
 export function GetCPUFeatures():Promise<string>;

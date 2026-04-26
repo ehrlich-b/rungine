@@ -159,7 +159,7 @@ Wraps `github.com/notnil/chess` with a UCI-oriented API for the arbiter.
 - [x] Per-game lifecycle callbacks (OnGameStart, OnGameComplete) for live progress reporting
 - [x] Resource accounting: total threads, hash across concurrent games — `EstimateUsage` in `internal/tournament/resources.go`
 - [x] Pause / resume tournament — `Scheduler.Pause`/`Resume`/`Paused`
-- [ ] Resume from on-disk state after process restart
+- [x] Resume from on-disk state after process restart — finished tournaments hydrate from SQLite; running rows recover as `interrupted`
 
 ---
 
@@ -264,7 +264,7 @@ The "world-class" half. TCEC-quality live broadcast.
 - [x] ELO with CI per engine
 - [x] All games table (white / black / result / reason)
 - [x] Export full tournament PGN
-- [ ] Save tournament to database
+- [x] Save tournament to database — `internal/database` SQLite, hydrated on app startup
 
 ---
 
@@ -284,14 +284,14 @@ The "world-class" half. TCEC-quality live broadcast.
 
 Scoped to tournament storage, not generic game library.
 
-- [ ] SQLite at `~/.rungine/rungine.db` via `modernc.org/sqlite`
-- [ ] Migration system
-- [ ] Tournaments table (config, status, results)
-- [ ] Games table (linked to tournament, includes embedded analysis)
+- [x] SQLite at `~/.rungine/rungine.db` via `modernc.org/sqlite`
+- [x] Migration system — `schema_version` table, append-only `migrations[]` slice
+- [x] Tournaments table (config, status, results)
+- [x] Games table (linked to tournament, includes embedded analysis)
 - [ ] Engine version table (track which build played which game)
 - [ ] Position index (Zobrist hash) for repetition lookup and game search
-- [ ] Tournament list / search UI
-- [ ] Re-run tournament with same config
+- [x] Tournament list / search UI — history panel with delete, re-run, winner column, timestamp
+- [x] Re-run tournament with same config — copies stored `TournamentSpec` back into the setup form
 
 ---
 
