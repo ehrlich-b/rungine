@@ -246,7 +246,7 @@ The "world-class" half. TCEC-quality live broadcast.
 
 - [x] Big board with current position
 - [x] Move list with engine eval annotations
-- [ ] Per-engine panel: name, depth, eval, nodes, NPS, PV (live, clickable)
+- [x] Per-engine panel: name, depth, eval, nodes, NPS, PV — `tournament:engineInfo` event + `GameView` panel
 - [x] Eval graph (white POV, click-to-jump, arrow-key nav)
 - [x] Clock display (both sides, ticking) — `frontend/src/components/LiveGames.svelte`
 - [ ] PV-on-board overlay (arrows for engine's planned line)

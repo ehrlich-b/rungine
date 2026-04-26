@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"rungine/internal/chess"
 	"rungine/internal/uci"
 )
 
@@ -127,6 +128,12 @@ type SchedulerConfig struct {
 	// in-flight game. It runs on the worker goroutine for that game and
 	// must not block.
 	OnGameMove func(p Pairing, rec MoveRecord, fen string)
+
+	// OnGameInfo, when non-nil, is called when an engine emits live
+	// analysis info during its search. side is "w" or "b" matching the
+	// engine that produced the info. The arbiter throttles per-search
+	// to ~10Hz, so this callback is safe to forward to the GUI.
+	OnGameInfo func(p Pairing, side string, info uci.AnalysisInfo)
 }
 
 // GameOutcome records one completed game.
@@ -310,6 +317,14 @@ func (s *Scheduler) runOne(ctx context.Context, p Pairing) GameOutcome {
 			hook(pairing, rec, fen)
 		}
 	}
+	var onInfo func(side chess.Side, info uci.AnalysisInfo)
+	if s.cfg.OnGameInfo != nil {
+		pairing := p
+		hook := s.cfg.OnGameInfo
+		onInfo = func(side chess.Side, info uci.AnalysisInfo) {
+			hook(pairing, string(side), info)
+		}
+	}
 	arb, err := New(Config{
 		White:       white.Engine,
 		Black:       black.Engine,
@@ -329,6 +344,7 @@ func (s *Scheduler) runOne(ctx context.Context, p Pairing) GameOutcome {
 		Site:        s.cfg.Site,
 		Round:       p.Round,
 		OnMove:      onMove,
+		OnInfo:      onInfo,
 	})
 	if err != nil {
 		out.Err = fmt.Errorf("arbiter: %w", err)

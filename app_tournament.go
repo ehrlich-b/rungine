@@ -13,6 +13,7 @@ import (
 	"rungine/internal/chess"
 	"rungine/internal/registry"
 	"rungine/internal/tournament"
+	"rungine/internal/uci"
 )
 
 // TournamentEngineRef references an installed engine to use in a tournament.
@@ -546,6 +547,31 @@ func (m *TournamentManager) Start(spec TournamentSpec) (string, error) {
 				}
 			}
 			m.emit("tournament:move", payload)
+		},
+		OnGameInfo: func(p tournament.Pairing, side string, info uci.AnalysisInfo) {
+			engineName := p.White.Name
+			if side == "b" {
+				engineName = p.Black.Name
+			}
+			payload := map[string]interface{}{
+				"tournamentId": id,
+				"gameNumber":   p.GameNumber,
+				"side":         side,
+				"engine":       engineName,
+				"depth":        info.Depth,
+				"selDepth":     info.SelDepth,
+				"nodes":        info.Nodes,
+				"nps":          info.NPS,
+				"timeMs":       info.Time.Milliseconds(),
+				"pv":           info.PV,
+				"multiPV":      info.MultiPV,
+			}
+			if info.Score.Mate != nil {
+				payload["evalMate"] = *info.Score.Mate
+			} else if info.Score.Centipawns != nil {
+				payload["evalCp"] = *info.Score.Centipawns
+			}
+			m.emit("tournament:engineInfo", payload)
 		},
 	}
 

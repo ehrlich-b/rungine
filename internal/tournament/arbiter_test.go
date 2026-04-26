@@ -766,6 +766,46 @@ func TestMovesPerPeriodResetAndMovesToGo(t *testing.T) {
 	}
 }
 
+func TestArbiterOnInfoFires(t *testing.T) {
+	white := newScripted([]string{"e2e4"})
+	white.scriptInfos([][]uci.AnalysisInfo{
+		{
+			{Depth: 5, PV: []string{"e2e4"}},
+			{Depth: 10, PV: []string{"e2e4", "e7e5"}},
+		},
+	})
+	black := newScripted([]string{"e7e5"})
+
+	var (
+		mu     sync.Mutex
+		events []chess.Side
+	)
+	arb, _ := New(Config{
+		White: white, Black: black,
+		WhiteName: "W", BlackName: "B",
+		TimeControl: TimeControl{FixedDepth: 1},
+		MaxPlies:    2,
+		OnInfo: func(side chess.Side, info uci.AnalysisInfo) {
+			mu.Lock()
+			defer mu.Unlock()
+			events = append(events, side)
+		},
+	})
+	if _, err := arb.Run(context.Background()); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(events) == 0 {
+		t.Error("OnInfo never fired")
+	}
+	// First info event should be from white (since white moves first).
+	if events[0] != chess.White {
+		t.Errorf("first OnInfo side = %q, want %q", events[0], chess.White)
+	}
+}
+
 func TestFormatClock(t *testing.T) {
 	tests := []struct {
 		d    time.Duration

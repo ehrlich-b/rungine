@@ -621,7 +621,11 @@
 
       <div class="dashboard">
         {#if viewingGame && gameDetail}
-          <GameView detail={gameDetail} onClose={closeGame} />
+          <GameView
+            detail={gameDetail}
+            onClose={closeGame}
+            tournamentId={viewingGame.id} />
+
         {:else if summary}
           <div class="card">
             <div class="card-head">

@@ -101,6 +101,12 @@ type Config struct {
 	// game record. The provided FEN reflects the position after the move.
 	// The callback runs on the arbiter's goroutine and must not block.
 	OnMove func(rec MoveRecord, fen string)
+
+	// OnInfo, when non-nil, is invoked whenever the side-to-move's engine
+	// emits an analysis info line during its search. It runs on the
+	// arbiter's goroutine and must not block. Use this to surface live
+	// per-engine PV, depth, score, nodes, NPS to the GUI.
+	OnInfo func(side chess.Side, info uci.AnalysisInfo)
 }
 
 // MoveRecord captures one ply's move and the engine's last reported
@@ -266,7 +272,7 @@ func (a *Arbiter) Run(ctx context.Context) (*Result, error) {
 			return result, nil
 		}
 
-		bm, info, hasInfo, err := a.awaitBestMove(ctx, engine, deadline)
+		bm, info, hasInfo, err := a.awaitBestMove(ctx, engine, deadline, side)
 		elapsed := time.Since(moveStart)
 
 		if err != nil {
@@ -455,8 +461,9 @@ var (
 // elapses, the context is cancelled, or the engine crashes. While waiting
 // it drains analysis info; the latest one is returned alongside the move.
 // hasInfo is true iff the engine sent at least one info line for this
-// search.
-func (a *Arbiter) awaitBestMove(ctx context.Context, engine Engine, deadline time.Duration) (uci.BestMove, uci.AnalysisInfo, bool, error) {
+// search. If Config.OnInfo is set it is called at most every 100ms per
+// search so the GUI can show live PV/score/depth.
+func (a *Arbiter) awaitBestMove(ctx context.Context, engine Engine, deadline time.Duration, side chess.Side) (uci.BestMove, uci.AnalysisInfo, bool, error) {
 	timer := time.NewTimer(deadline)
 	defer timer.Stop()
 
@@ -464,9 +471,21 @@ func (a *Arbiter) awaitBestMove(ctx context.Context, engine Engine, deadline tim
 	infoCh := engine.InfoChannel()
 
 	var (
-		latest  uci.AnalysisInfo
-		hasInfo bool
+		latest      uci.AnalysisInfo
+		hasInfo     bool
+		lastInfoEmit time.Time
 	)
+	emit := func(info uci.AnalysisInfo) {
+		if a.cfg.OnInfo == nil {
+			return
+		}
+		now := time.Now()
+		if now.Sub(lastInfoEmit) < 100*time.Millisecond {
+			return
+		}
+		lastInfoEmit = now
+		a.cfg.OnInfo(side, info)
+	}
 
 	for {
 		select {
@@ -485,6 +504,11 @@ func (a *Arbiter) awaitBestMove(ctx context.Context, engine Engine, deadline tim
 					latest = info
 					hasInfo = true
 				default:
+					// Final emit so the UI sees the engine's last word
+					// for this move.
+					if hasInfo && a.cfg.OnInfo != nil {
+						a.cfg.OnInfo(side, latest)
+					}
 					return bm, latest, hasInfo, nil
 				}
 			}
@@ -495,6 +519,7 @@ func (a *Arbiter) awaitBestMove(ctx context.Context, engine Engine, deadline tim
 			}
 			latest = info
 			hasInfo = true
+			emit(info)
 		case <-timer.C:
 			return uci.BestMove{}, latest, hasInfo, errMoveTimeout
 		case <-ctx.Done():

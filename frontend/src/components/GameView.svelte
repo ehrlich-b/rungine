@@ -1,16 +1,36 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import Board from './Board.svelte';
   import EvalGraph from './EvalGraph.svelte';
   import { STARTING_FEN } from '../lib/chess';
+  import { on } from '../lib/wails';
   import type { main } from '../../wailsjs/go/models';
 
   type Props = {
     detail: main.GameDetail;
     onClose?: () => void;
+    // When set, GameView subscribes to live tournament events for this
+    // game and renders a per-engine analysis panel.
+    tournamentId?: string;
   };
 
-  let { detail, onClose }: Props = $props();
+  let { detail, onClose, tournamentId }: Props = $props();
+
+  type EngineInfo = {
+    engine: string;
+    depth: number;
+    selDepth: number;
+    nodes: number;
+    nps: number;
+    timeMs: number;
+    pv: string[];
+    evalCp: number | null;
+    evalMate: number | null;
+  };
+
+  let liveWhite = $state<EngineInfo | null>(null);
+  let liveBlack = $state<EngineInfo | null>(null);
+  let unsubs: Array<() => void> = [];
 
   // currentPly: 0 = starting position, 1..N = after Nth ply.
   let currentPly = $state(0);
@@ -48,8 +68,48 @@
 
   onMount(() => {
     window.addEventListener('keydown', key);
+    if (tournamentId) {
+      unsubs.push(
+        on<any>('tournament:engineInfo', (p) => {
+          if (!p) return;
+          if (p.tournamentId !== tournamentId) return;
+          if (p.gameNumber !== detail.gameNumber) return;
+          const info: EngineInfo = {
+            engine: p.engine ?? '',
+            depth: p.depth ?? 0,
+            selDepth: p.selDepth ?? 0,
+            nodes: p.nodes ?? 0,
+            nps: p.nps ?? 0,
+            timeMs: p.timeMs ?? 0,
+            pv: Array.isArray(p.pv) ? p.pv : [],
+            evalCp: p.evalCp ?? null,
+            evalMate: p.evalMate ?? null,
+          };
+          if (p.side === 'b') liveBlack = info;
+          else liveWhite = info;
+        }),
+      );
+    }
     return () => window.removeEventListener('keydown', key);
   });
+
+  onDestroy(() => unsubs.forEach((u) => u()));
+
+  function fmtNumber(n: number): string {
+    if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+    return n.toString();
+  }
+
+  function fmtScore(info: EngineInfo): string {
+    if (info.evalMate !== null) return info.evalMate > 0 ? `M${info.evalMate}` : `-M${-info.evalMate}`;
+    if (info.evalCp !== null) {
+      const cp = info.evalCp / 100;
+      return cp >= 0 ? `+${cp.toFixed(2)}` : cp.toFixed(2);
+    }
+    return '—';
+  }
 
   function formatEval(m: main.MoveDetail): string {
     if (m.evalMate !== undefined && m.evalMate !== null) {
@@ -176,6 +236,36 @@
           {currentPly}
           onJump={(p) => go(p)}
           height={70} />
+      {/if}
+      {#if liveWhite || liveBlack}
+        <div class="engines-panel">
+          {#each [{ side: 'white', info: liveWhite }, { side: 'black', info: liveBlack }] as engine (engine.side)}
+            {@const info = engine.info}
+            {#if info}
+              <div class="engine-card engine-{engine.side}">
+                <div class="engine-head">
+                  <strong>{info.engine || engine.side}</strong>
+                  <span class="engine-eval">{fmtScore(info)}</span>
+                </div>
+                <div class="engine-stats muted small">
+                  <span>d{info.depth}{info.selDepth ? `/${info.selDepth}` : ''}</span>
+                  <span>{fmtNumber(info.nodes)}n</span>
+                  {#if info.nps > 0}
+                    <span>{fmtNumber(info.nps)}/s</span>
+                  {/if}
+                  {#if info.timeMs > 0}
+                    <span>{(info.timeMs / 1000).toFixed(1)}s</span>
+                  {/if}
+                </div>
+                {#if info.pv.length > 0}
+                  <div class="engine-pv">
+                    {info.pv.slice(0, 12).join(' ')}
+                  </div>
+                {/if}
+              </div>
+            {/if}
+          {/each}
+        </div>
       {/if}
     </div>
 
@@ -470,5 +560,59 @@
 
   .small {
     font-size: 0.75rem;
+  }
+
+  .engines-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    width: 100%;
+  }
+
+  .engine-card {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 6px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .engine-card.engine-white {
+    border-left: 3px solid var(--text-primary);
+  }
+
+  .engine-card.engine-black {
+    border-left: 3px solid var(--text-secondary);
+  }
+
+  .engine-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-sm);
+    font-size: 0.85rem;
+  }
+
+  .engine-eval {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-weight: 600;
+  }
+
+  .engine-stats {
+    display: flex;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .engine-pv {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 </style>
