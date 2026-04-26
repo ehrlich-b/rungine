@@ -3,6 +3,8 @@ package tournament
 import (
 	"slices"
 	"testing"
+
+	"rungine/internal/chess"
 )
 
 func TestBuildMatchAlternatesColors(t *testing.T) {
@@ -192,6 +194,114 @@ func TestBuildGauntletEmptyField(t *testing.T) {
 		GamesPerOpponent: 2,
 	}); got != nil {
 		t.Errorf("empty field returned %d pairings, want nil", len(got))
+	}
+}
+
+func TestBuildSwissRound1Pairs(t *testing.T) {
+	engines := []EngineSpec{
+		{Name: "A"}, {Name: "B"}, {Name: "C"}, {Name: "D"},
+	}
+	pairings := BuildSwissRound(SwissSpec{Engines: engines, Round: 1})
+	if len(pairings) != 2 {
+		t.Fatalf("len = %d, want 2", len(pairings))
+	}
+	// Round 1 with no prior data: input order is preserved.
+	// A vs B, C vs D.
+	if pairings[0].White.Name != "A" || pairings[0].Black.Name != "B" {
+		t.Errorf("game 1 = %s vs %s, want A vs B", pairings[0].White.Name, pairings[0].Black.Name)
+	}
+	if pairings[1].White.Name != "C" || pairings[1].Black.Name != "D" {
+		t.Errorf("game 2 = %s vs %s, want C vs D", pairings[1].White.Name, pairings[1].Black.Name)
+	}
+	for _, p := range pairings {
+		if p.Round != "1" {
+			t.Errorf("Round = %q, want 1", p.Round)
+		}
+	}
+}
+
+func TestBuildSwissRound2AvoidsRepeats(t *testing.T) {
+	engines := []EngineSpec{
+		{Name: "A"}, {Name: "B"}, {Name: "C"}, {Name: "D"},
+	}
+	prev := []GameOutcome{
+		{Pairing: Pairing{White: EngineSpec{Name: "A"}, Black: EngineSpec{Name: "B"}},
+			Result: &Result{Outcome: chess.WhiteWins}}, // A beats B
+		{Pairing: Pairing{White: EngineSpec{Name: "C"}, Black: EngineSpec{Name: "D"}},
+			Result: &Result{Outcome: chess.WhiteWins}}, // C beats D
+	}
+	pairings := BuildSwissRound(SwissSpec{Engines: engines, Round: 2, Previous: prev})
+	if len(pairings) != 2 {
+		t.Fatalf("len = %d, want 2", len(pairings))
+	}
+	// Standings after round 1: A=1, C=1, B=0, D=0.
+	// Round 2 pairs A vs C (top score group) and B vs D (bottom).
+	pairsSeen := map[string]bool{}
+	for _, p := range pairings {
+		key := p.White.Name + "-" + p.Black.Name
+		altKey := p.Black.Name + "-" + p.White.Name
+		pairsSeen[key] = true
+		pairsSeen[altKey] = true
+	}
+	if !pairsSeen["A-C"] {
+		t.Errorf("expected A vs C in round 2; got %+v", pairings)
+	}
+	if !pairsSeen["B-D"] {
+		t.Errorf("expected B vs D in round 2; got %+v", pairings)
+	}
+	// Round 1 pairings (A-B, C-D) should NOT recur.
+	for _, p := range pairings {
+		ab := p.White.Name + "-" + p.Black.Name
+		ba := p.Black.Name + "-" + p.White.Name
+		if ab == "A-B" || ba == "A-B" || ab == "C-D" || ba == "C-D" {
+			t.Errorf("Swiss should not repeat round-1 pairing %s vs %s",
+				p.White.Name, p.Black.Name)
+		}
+	}
+}
+
+func TestBuildSwissRound2BalancesColors(t *testing.T) {
+	// In round 1, A played white and C played black; in round 2 those
+	// players should be swapped so prior color counts stay balanced.
+	engines := []EngineSpec{
+		{Name: "A"}, {Name: "B"}, {Name: "C"}, {Name: "D"},
+	}
+	prev := []GameOutcome{
+		{Pairing: Pairing{White: EngineSpec{Name: "A"}, Black: EngineSpec{Name: "B"}},
+			Result: &Result{Outcome: chess.WhiteWins}}, // A=W, B=B
+		{Pairing: Pairing{White: EngineSpec{Name: "D"}, Black: EngineSpec{Name: "C"}},
+			Result: &Result{Outcome: chess.BlackWins}}, // C=B, D=W ... wait C wins as black
+	}
+	pairings := BuildSwissRound(SwissSpec{Engines: engines, Round: 2, Previous: prev})
+	// A had white once (whiteCount=1, blackCount=0).
+	// C had black once (whiteCount=0, blackCount=1).
+	// Round 2 should pair A vs C (both with score 1.0) — A on black, C on white.
+	for _, p := range pairings {
+		if (p.White.Name == "A" && p.Black.Name == "C") ||
+			(p.White.Name == "C" && p.Black.Name == "A") {
+			if p.White.Name != "C" {
+				t.Errorf("expected C on white (whiteCount 0 < A's 1), got %s vs %s",
+					p.White.Name, p.Black.Name)
+			}
+			return
+		}
+	}
+	t.Errorf("never found A vs C pairing: %+v", pairings)
+}
+
+func TestBuildSwissOddFieldSitsOneOut(t *testing.T) {
+	engines := []EngineSpec{
+		{Name: "A"}, {Name: "B"}, {Name: "C"}, {Name: "D"}, {Name: "E"},
+	}
+	pairings := BuildSwissRound(SwissSpec{Engines: engines, Round: 1})
+	if len(pairings) != 2 {
+		t.Fatalf("odd field expected 2 pairings (one bye), got %d", len(pairings))
+	}
+}
+
+func TestBuildSwissTooFewEngines(t *testing.T) {
+	if got := BuildSwissRound(SwissSpec{Engines: []EngineSpec{{Name: "A"}}}); got != nil {
+		t.Errorf("Swiss with 1 engine returned %d pairings, want nil", len(got))
 	}
 }
 

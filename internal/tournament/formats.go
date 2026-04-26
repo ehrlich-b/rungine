@@ -1,6 +1,11 @@
 package tournament
 
-import "strconv"
+import (
+	"sort"
+	"strconv"
+
+	"rungine/internal/chess"
+)
 
 // Opening describes a starting position for a game. Empty StartFEN
 // means the standard starting position; StartMoves are applied on top.
@@ -152,6 +157,161 @@ type GauntletSpec struct {
 	PairMode bool
 
 	StartGameNumber int
+}
+
+// SwissSpec configures BuildSwissRound.
+type SwissSpec struct {
+	// Engines is the field. Round 1 ordering follows this slice; later
+	// rounds re-rank by score-then-name.
+	Engines []EngineSpec
+
+	// Round is the 1-based round number being generated.
+	Round int
+
+	// Previous holds completed games from earlier rounds. Used to score
+	// engines and avoid repeat pairings.
+	Previous []GameOutcome
+
+	Openings []Opening
+	PairMode bool
+
+	StartGameNumber int
+}
+
+// BuildSwissRound generates pairings for one Swiss round given prior
+// game outcomes. Engines are sorted by current standing (points desc,
+// name asc), then paired greedily within score groups while avoiding
+// repeat opponents. Color allocation favors balancing prior white/black
+// counts. If the field has odd cardinality the lowest-ranked unpaired
+// engine receives an implicit bye (no pairing emitted for it).
+func BuildSwissRound(spec SwissSpec) []Pairing {
+	if len(spec.Engines) < 2 {
+		return nil
+	}
+	if spec.Round < 1 {
+		spec.Round = 1
+	}
+	if spec.StartGameNumber < 1 {
+		spec.StartGameNumber = 1
+	}
+
+	type info struct {
+		spec       EngineSpec
+		score      float64
+		whiteCount int
+		blackCount int
+	}
+	state := make(map[string]*info, len(spec.Engines))
+	order := make([]*info, 0, len(spec.Engines))
+	for _, e := range spec.Engines {
+		i := &info{spec: e}
+		state[e.Name] = i
+		order = append(order, i)
+	}
+
+	paired := map[[2]string]bool{}
+	for _, o := range spec.Previous {
+		if o.Err != nil || o.Result == nil {
+			continue
+		}
+		wn, bn := o.Pairing.White.Name, o.Pairing.Black.Name
+		ws, bs := state[wn], state[bn]
+		if ws == nil || bs == nil {
+			continue
+		}
+		switch o.Result.Outcome {
+		case chess.WhiteWins:
+			ws.score += 1
+		case chess.BlackWins:
+			bs.score += 1
+		case chess.Drawn:
+			ws.score += 0.5
+			bs.score += 0.5
+		default:
+			continue
+		}
+		ws.whiteCount++
+		bs.blackCount++
+		a, b := wn, bn
+		if a > b {
+			a, b = b, a
+		}
+		paired[[2]string{a, b}] = true
+	}
+
+	// Round 1: keep input order. Later rounds: sort by score desc, name asc.
+	sorted := order
+	if spec.Round > 1 || len(spec.Previous) > 0 {
+		sorted = make([]*info, len(order))
+		copy(sorted, order)
+		sort.SliceStable(sorted, func(i, j int) bool {
+			if sorted[i].score != sorted[j].score {
+				return sorted[i].score > sorted[j].score
+			}
+			return sorted[i].spec.Name < sorted[j].spec.Name
+		})
+	}
+
+	used := map[string]bool{}
+	var pairings []Pairing
+	gameIdx := 0
+	for i, p := range sorted {
+		if used[p.spec.Name] {
+			continue
+		}
+		var opponent *info
+		// Prefer an opponent we haven't faced.
+		for j := i + 1; j < len(sorted); j++ {
+			q := sorted[j]
+			if used[q.spec.Name] {
+				continue
+			}
+			a, b := p.spec.Name, q.spec.Name
+			if a > b {
+				a, b = b, a
+			}
+			if paired[[2]string{a, b}] {
+				continue
+			}
+			opponent = q
+			break
+		}
+		// Fall back to nearest opponent regardless of repetition.
+		if opponent == nil {
+			for j := i + 1; j < len(sorted); j++ {
+				q := sorted[j]
+				if !used[q.spec.Name] {
+					opponent = q
+					break
+				}
+			}
+		}
+		if opponent == nil {
+			used[p.spec.Name] = true // bye
+			continue
+		}
+		used[p.spec.Name] = true
+		used[opponent.spec.Name] = true
+
+		// Assign white to whoever has played fewer whites; tiebreak by
+		// keeping the higher-ranked player on white.
+		white, black := p, opponent
+		if white.whiteCount > black.whiteCount {
+			white, black = opponent, p
+		}
+
+		opening := pickOpening(spec.Openings, gameIdx, spec.PairMode)
+		pairings = append(pairings, Pairing{
+			GameNumber: spec.StartGameNumber + gameIdx,
+			Round:      strconv.Itoa(spec.Round),
+			White:      white.spec,
+			Black:      black.spec,
+			StartFEN:   opening.StartFEN,
+			StartMoves: opening.StartMoves,
+		})
+		gameIdx++
+	}
+	return pairings
 }
 
 // BuildGauntlet returns pairings for a gauntlet: the challenger plays
