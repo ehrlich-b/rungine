@@ -138,12 +138,12 @@ Wraps `github.com/notnil/chess` with a UCI-oriented API for the arbiter.
 
 ### Time controls
 
-- [ ] Sudden death (`90+0`)
-- [ ] Increment (`60+0.6`)
-- [ ] Moves + time (`40/15+0`)
-- [ ] Fixed depth (`d=N`) for testing
-- [ ] Fixed nodes (`n=N`) for testing
-- [ ] Fixed movetime (`mt=ms`) for testing
+- [x] Sudden death (`90+0`)
+- [x] Increment (`60+0.6`)
+- [ ] Moves + time (`40/15+0`) — `MovesPerPeriod` set on UCI but no clock reset between periods
+- [x] Fixed depth (`d=N`) for testing
+- [x] Fixed nodes (`n=N`) for testing
+- [x] Fixed movetime (`mt=ms`) for testing — known issue: time forfeits unexpectedly under load with Stockfish 18, investigate
 
 ### Opening selection
 
