@@ -309,9 +309,9 @@ Scoped to tournament storage, not generic game library.
 
 ### Distribution
 
-- [ ] GitHub Actions: build for darwin-arm64, darwin-amd64, linux-amd64, windows-amd64
-- [ ] Release on tag
-- [ ] Notarize macOS builds
+- [x] GitHub Actions: build for darwin-arm64, darwin-amd64, linux-amd64, windows-amd64 — `.github/workflows/release.yml`, manual + tag-triggered
+- [x] Release on tag — `softprops/action-gh-release@v2` attaches per-platform archives to a `v*` tag release
+- [ ] Notarize macOS builds (requires Apple Developer credentials)
 - [ ] Code sign Windows (if feasible)
 
 ### Docs

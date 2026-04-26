@@ -1,0 +1,91 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            platform: darwin-arm64
+            wails-platform: darwin/arm64
+            artifact: rungine-darwin-arm64.zip
+          - os: macos-13
+            platform: darwin-amd64
+            wails-platform: darwin/amd64
+            artifact: rungine-darwin-amd64.zip
+          - os: ubuntu-24.04
+            platform: linux-amd64
+            wails-platform: linux/amd64
+            wails-tags: webkit2_41
+            artifact: rungine-linux-amd64.tar.gz
+          - os: windows-latest
+            platform: windows-amd64
+            wails-platform: windows/amd64
+            artifact: rungine-windows-amd64.zip
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Linux deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Wails build
+        run: wails build -platform ${{ matrix.wails-platform }} -clean ${{ matrix.wails-tags && format('-tags {0}', matrix.wails-tags) || '' }}
+
+      - name: Package macOS
+        if: runner.os == 'macOS'
+        working-directory: build/bin
+        run: ditto -c -k --keepParent rungine.app ${{ matrix.artifact }}
+
+      - name: Package Linux
+        if: runner.os == 'Linux'
+        working-directory: build/bin
+        run: tar czf ${{ matrix.artifact }} rungine
+
+      - name: Package Windows
+        if: runner.os == 'Windows'
+        working-directory: build/bin
+        shell: pwsh
+        run: Compress-Archive -Path rungine.exe -DestinationPath ${{ matrix.artifact }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}
+          path: build/bin/${{ matrix.artifact }}
+          if-no-files-found: error
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/bin/${{ matrix.artifact }}
+          generate_release_notes: true
