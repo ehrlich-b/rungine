@@ -21,11 +21,20 @@
     evalMate: number | null;
     done: boolean;
     result: string;
+    // Clock state. Both clocks are stored as the value on the wall at
+    // the moment of lastTickEpoch; the side-to-move's clock is
+    // displayed as that value minus (now - lastTickEpoch).
+    whiteMs: number | null;
+    blackMs: number | null;
+    sideToMove: 'w' | 'b';
+    lastTickEpoch: number; // Date.now() at last move event
   };
 
   let { tournamentId, onSelectGame }: Props = $props();
 
   let games = $state<Record<number, LiveGame>>({});
+  // Bumped on a 200ms interval to force clock displays to re-render.
+  let now = $state(Date.now());
   let unsubs: Array<() => void> = [];
 
   function reset() {
@@ -55,6 +64,10 @@
           evalMate: null,
           done: false,
           result: '*',
+          whiteMs: null,
+          blackMs: null,
+          sideToMove: 'w',
+          lastTickEpoch: Date.now(),
         },
       };
     }),
@@ -62,18 +75,23 @@
       if (!p || p.tournamentId !== tournamentId) return;
       const existing = games[p.gameNumber];
       if (!existing) return;
-      games = {
-        ...games,
-        [p.gameNumber]: {
-          ...existing,
-          fen: p.fen,
-          ply: p.ply,
-          lastMove: p.uci ?? null,
-          lastSan: p.san ?? null,
-          evalCp: p.evalCp ?? null,
-          evalMate: p.evalMate ?? null,
-        },
+      // p.side is the side that just moved; clockAfterMs is its remaining time.
+      const clock = typeof p.clockAfterMs === 'number' && p.clockAfterMs > 0 ? p.clockAfterMs : null;
+      const movedSide: 'w' | 'b' = p.side === 'black' ? 'b' : 'w';
+      const next: LiveGame = {
+        ...existing,
+        fen: p.fen,
+        ply: p.ply,
+        lastMove: p.uci ?? null,
+        lastSan: p.san ?? null,
+        evalCp: p.evalCp ?? null,
+        evalMate: p.evalMate ?? null,
+        sideToMove: movedSide === 'w' ? 'b' : 'w',
+        lastTickEpoch: Date.now(),
       };
+      if (movedSide === 'w' && clock !== null) next.whiteMs = clock;
+      if (movedSide === 'b' && clock !== null) next.blackMs = clock;
+      games = { ...games, [p.gameNumber]: next };
     }),
     on<any>('tournament:gameComplete', (p) => {
       if (!p || p.tournamentId !== tournamentId) return;
@@ -91,9 +109,36 @@
     }),
   );
 
+  const tickInterval = setInterval(() => {
+    now = Date.now();
+  }, 200);
+
   onDestroy(() => {
+    clearInterval(tickInterval);
     unsubs.forEach((u) => u());
   });
+
+  function displayClock(g: LiveGame, side: 'w' | 'b'): string {
+    const stored = side === 'w' ? g.whiteMs : g.blackMs;
+    if (stored === null) return '';
+    let ms = stored;
+    if (!g.done && g.sideToMove === side) {
+      ms = Math.max(0, stored - (now - g.lastTickEpoch));
+    }
+    return formatClock(ms);
+  }
+
+  function formatClock(ms: number): string {
+    const total = Math.floor(ms / 1000);
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    if (m >= 60) {
+      const h = Math.floor(m / 60);
+      const rm = m % 60;
+      return `${h}:${rm.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
 
   function activeGames(): LiveGame[] {
     return Object.values(games)
@@ -144,6 +189,16 @@
           <span class="muted">vs</span>
           <span class="player black" title={g.black}>{g.black}</span>
         </div>
+        {#if g.whiteMs !== null || g.blackMs !== null}
+          <div class="clocks">
+            <span class="clock white" class:active={g.sideToMove === 'w' && !g.done}>
+              {displayClock(g, 'w') || '—'}
+            </span>
+            <span class="clock black" class:active={g.sideToMove === 'b' && !g.done}>
+              {displayClock(g, 'b') || '—'}
+            </span>
+          </div>
+        {/if}
         {#if g.lastSan}
           <div class="last-move muted small">last: {g.lastSan}</div>
         {/if}
@@ -250,5 +305,28 @@
 
   .small {
     font-size: 0.7rem;
+  }
+
+  .clocks {
+    display: flex;
+    justify-content: space-between;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .clock {
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .clock.active {
+    background: var(--surface-2);
+    color: var(--text-primary);
+  }
+
+  .clock.black {
+    text-align: right;
   }
 </style>

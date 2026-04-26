@@ -248,7 +248,7 @@ The "world-class" half. TCEC-quality live broadcast.
 - [x] Move list with engine eval annotations
 - [ ] Per-engine panel: name, depth, eval, nodes, NPS, PV (live, clickable)
 - [x] Eval graph (white POV, click-to-jump, arrow-key nav)
-- [ ] Clock display (both sides, ticking)
+- [x] Clock display (both sides, ticking) — `frontend/src/components/LiveGames.svelte`
 - [ ] PV-on-board overlay (arrows for engine's planned line)
 
 ### Replay finished games
