@@ -176,14 +176,14 @@ Wraps `github.com/notnil/chess` with a UCI-oriented API for the arbiter.
 
 - [x] Score table per engine (W/D/L, points) — `BuildStandings` in `internal/tournament/scoring.go`
 - [x] Crosstable (head-to-head matrix) — `BuildCrosstable`
-- [ ] ELO calculation with iterative convergence (Bayesian or Ordo-style)
-- [ ] ELO confidence intervals (Wilson or LOS)
-- [ ] LOS, draw ratio, performance rating
+- [x] ELO calculation with iterative convergence (Ordo-style performance-rating fit) — `EstimateElos`
+- [x] ELO confidence intervals (trinomial-variance normal approximation) — `EloInterval`
+- [x] LOS, draw ratio, performance rating — `LikelihoodOfSuperiority`, `DrawRatio`, `PerformanceRating`
 
 ### SPRT (engine development mode)
 
-- [ ] SPRT calculator: LLR, lower/upper bounds from `elo0` / `elo1` / `alpha` / `beta`
-- [ ] SPRT termination (accept H0 / accept H1 / continue)
+- [x] SPRT calculator: LLR, lower/upper bounds from `elo0` / `elo1` / `alpha` / `beta` — `internal/tournament/sprt.go`
+- [x] SPRT termination (accept H0 / accept H1 / continue)
 - [ ] Live LLR display during match
 
 ---

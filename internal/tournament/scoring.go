@@ -2,6 +2,7 @@ package tournament
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 
@@ -197,4 +198,228 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n]
+}
+
+// EloDelta returns the ELO rating difference implied by a score
+// percentage in [0, 1]. 0.5 → 0; saturated scores clamp at ±800.
+func EloDelta(scorePct float64) float64 {
+	const cap = 800.0
+	if scorePct >= 1 {
+		return cap
+	}
+	if scorePct <= 0 {
+		return -cap
+	}
+	delta := -400 * math.Log10(1/scorePct-1)
+	if delta > cap {
+		return cap
+	}
+	if delta < -cap {
+		return -cap
+	}
+	return delta
+}
+
+// PerformanceRating returns the ELO rating consistent with achieving
+// scorePct against opponents averaging opponentRating.
+func PerformanceRating(scorePct, opponentRating float64) float64 {
+	return opponentRating + EloDelta(scorePct)
+}
+
+// DrawRatio returns draws / games. Zero when games == 0.
+func DrawRatio(draws, games int) float64 {
+	if games <= 0 {
+		return 0
+	}
+	return float64(draws) / float64(games)
+}
+
+// LikelihoodOfSuperiority estimates the probability that one engine is
+// truly stronger given W wins and L losses against another. Draws are
+// ignored. Returns 0.5 when there are no decisive games.
+func LikelihoodOfSuperiority(wins, losses int) float64 {
+	n := wins + losses
+	if n == 0 {
+		return 0.5
+	}
+	z := float64(wins-losses) / math.Sqrt(float64(2*n))
+	return 0.5 * (1 + math.Erf(z))
+}
+
+// trinomialMeanSE returns the score-percentage mean and standard error
+// from W/D/L counts using the trinomial-distribution variance.
+func trinomialMeanSE(wins, draws, losses int) (mean, se float64) {
+	n := wins + draws + losses
+	if n == 0 {
+		return 0.5, 0
+	}
+	nf := float64(n)
+	mean = (float64(wins) + 0.5*float64(draws)) / nf
+	variance := float64(wins)*math.Pow(1-mean, 2) +
+		float64(draws)*math.Pow(0.5-mean, 2) +
+		float64(losses)*math.Pow(mean, 2)
+	variance /= nf
+	se = math.Sqrt(variance / nf)
+	return mean, se
+}
+
+// zForConfidence returns the standard-normal critical value for a
+// two-sided confidence level. Common levels are tabulated; defaults to
+// 1.96 (95%) for unknown values.
+func zForConfidence(confidence float64) float64 {
+	switch {
+	case confidence >= 0.99:
+		return 2.576
+	case confidence >= 0.975:
+		return 2.241
+	case confidence >= 0.95:
+		return 1.96
+	case confidence >= 0.90:
+		return 1.645
+	case confidence >= 0.80:
+		return 1.282
+	default:
+		return 1.96
+	}
+}
+
+// ScoreInterval returns (lo, mean, hi) on the score percentage at the
+// given confidence using a normal approximation with trinomial variance.
+func ScoreInterval(wins, draws, losses int, confidence float64) (lo, mean, hi float64) {
+	mean, se := trinomialMeanSE(wins, draws, losses)
+	z := zForConfidence(confidence)
+	lo = math.Max(0, mean-z*se)
+	hi = math.Min(1, mean+z*se)
+	return lo, mean, hi
+}
+
+// EloInterval returns (lo, mid, hi) ELO deltas at the given confidence
+// level given W/D/L. mid is the point estimate.
+func EloInterval(wins, draws, losses int, confidence float64) (lo, mid, hi float64) {
+	pLo, pMid, pHi := ScoreInterval(wins, draws, losses, confidence)
+	return EloDelta(pLo), EloDelta(pMid), EloDelta(pHi)
+}
+
+// EstimateElos returns ELO ratings for every engine that played in
+// outcomes, fit by iterative performance-rating with damping. If
+// anchorName is in outcomes, it is held at anchorRating; otherwise the
+// mean rating across all engines is fixed at anchorRating. Convergence
+// stops at maxChange < 0.01 ELO or 500 iterations.
+func EstimateElos(outcomes []GameOutcome, anchorName string, anchorRating float64) map[string]float64 {
+	nameIdx := map[string]int{}
+	addName := func(n string) {
+		if _, ok := nameIdx[n]; !ok {
+			nameIdx[n] = len(nameIdx)
+		}
+	}
+	for _, o := range outcomes {
+		if o.Err != nil || o.Result == nil {
+			continue
+		}
+		addName(o.Pairing.White.Name)
+		addName(o.Pairing.Black.Name)
+	}
+	n := len(nameIdx)
+	if n == 0 {
+		return map[string]float64{}
+	}
+
+	games := make([][]float64, n)
+	score := make([][]float64, n)
+	for i := range n {
+		games[i] = make([]float64, n)
+		score[i] = make([]float64, n)
+	}
+	for _, o := range outcomes {
+		if o.Err != nil || o.Result == nil {
+			continue
+		}
+		wi, bi := nameIdx[o.Pairing.White.Name], nameIdx[o.Pairing.Black.Name]
+		switch o.Result.Outcome {
+		case chess.WhiteWins:
+			score[wi][bi] += 1
+			games[wi][bi]++
+			games[bi][wi]++
+		case chess.BlackWins:
+			score[bi][wi] += 1
+			games[wi][bi]++
+			games[bi][wi]++
+		case chess.Drawn:
+			score[wi][bi] += 0.5
+			score[bi][wi] += 0.5
+			games[wi][bi]++
+			games[bi][wi]++
+		default:
+			continue
+		}
+	}
+
+	ratings := make([]float64, n)
+	for i := range ratings {
+		ratings[i] = anchorRating
+	}
+
+	const (
+		maxIter = 500
+		tol     = 0.01
+		damping = 0.5
+	)
+
+	for range maxIter {
+		newRatings := make([]float64, n)
+		for i := range n {
+			totalScore, totalGames, oppRatingSum := 0.0, 0.0, 0.0
+			for j := range n {
+				if games[i][j] == 0 {
+					continue
+				}
+				totalScore += score[i][j]
+				totalGames += games[i][j]
+				oppRatingSum += games[i][j] * ratings[j]
+			}
+			if totalGames == 0 {
+				newRatings[i] = ratings[i]
+				continue
+			}
+			scorePct := totalScore / totalGames
+			avgOpp := oppRatingSum / totalGames
+			newRatings[i] = PerformanceRating(scorePct, avgOpp)
+		}
+
+		maxChange := 0.0
+		for i := range n {
+			next := damping*ratings[i] + (1-damping)*newRatings[i]
+			if d := math.Abs(next - ratings[i]); d > maxChange {
+				maxChange = d
+			}
+			ratings[i] = next
+		}
+
+		// Pin the anchor (or pin the mean to anchorRating if no anchor).
+		if idx, ok := nameIdx[anchorName]; ok && anchorName != "" {
+			shift := anchorRating - ratings[idx]
+			for i := range ratings {
+				ratings[i] += shift
+			}
+		} else {
+			sum := 0.0
+			for _, r := range ratings {
+				sum += r
+			}
+			shift := anchorRating - sum/float64(n)
+			for i := range ratings {
+				ratings[i] += shift
+			}
+		}
+
+		if maxChange < tol {
+			break
+		}
+	}
+
+	out := make(map[string]float64, n)
+	for name, idx := range nameIdx {
+		out[name] = ratings[idx]
+	}
+	return out
 }
