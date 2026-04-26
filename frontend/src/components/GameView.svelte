@@ -146,6 +146,17 @@
         <button onclick={() => go(currentPly + 1)} title="Next (→)">▶</button>
         <button onclick={() => go(totalPlies)} title="End (End)">⏭</button>
       </div>
+      {#if totalPlies > 0}
+        <input
+          class="scrubber"
+          type="range"
+          min="0"
+          max={totalPlies}
+          step="1"
+          value={currentPly}
+          aria-label="Game timeline"
+          oninput={(e) => go(parseInt((e.currentTarget as HTMLInputElement).value, 10))} />
+      {/if}
       {#if currentMove}
         <div class="move-info">
           {#if formatEval(currentMove)}
@@ -308,6 +319,49 @@
     text-align: center;
     font-size: 0.85rem;
     font-variant-numeric: tabular-nums;
+  }
+
+  .scrubber {
+    width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    margin: 0;
+    height: 18px;
+    cursor: pointer;
+  }
+
+  .scrubber::-webkit-slider-runnable-track {
+    height: 4px;
+    background: var(--surface-3);
+    border-radius: 2px;
+  }
+
+  .scrubber::-moz-range-track {
+    height: 4px;
+    background: var(--surface-3);
+    border-radius: 2px;
+  }
+
+  .scrubber::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    background: var(--accent);
+    border-radius: 50%;
+    border: none;
+    margin-top: -5px;
+    cursor: pointer;
+  }
+
+  .scrubber::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    background: var(--accent);
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
   }
 
   .move-info {

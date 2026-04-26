@@ -255,7 +255,7 @@ The "world-class" half. TCEC-quality live broadcast.
 
 - [x] Step through with engine analysis preserved (cached during run)
 - [x] Keyboard navigation (← → Home End F)
-- [ ] Scrubber across game timeline
+- [x] Scrubber across game timeline — range slider in `GameView.svelte`
 - [x] Export game PGN with `[%eval]` and `[%clk]` — Copy PGN button
 
 ### Tournament results page
@@ -274,7 +274,7 @@ The "world-class" half. TCEC-quality live broadcast.
 - [x] One-click install (progress shown as text; graphical bar still TODO)
 - [x] CPU feature display (StatusBar + Settings)
 - [x] Configure UCI options (spin / check / combo / string / button editors)
-- [ ] Engine profiles (analysis, tournament, quick)
+- [x] Engine profiles (analysis, tournament, quick) — registry profiles listed and applied via `App.ApplyEngineProfile`
 - [x] Remove installed engine
 - [x] Add custom engine (browse for binary, validates via UCI handshake) — `App.PickEngineBinary` + `App.AddCustomEngine`
 
