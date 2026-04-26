@@ -113,10 +113,20 @@ func (c SPRTConfig) Evaluate(wins, draws, losses int) SPRTResult {
 // callback is invoked once with the terminating result (also from a
 // worker goroutine).
 func NewSPRTStopper(c SPRTConfig, candidateName string, onDecision func(SPRTResult)) func(GameOutcome) bool {
+	return NewSPRTStopperWithProgress(c, candidateName, nil, onDecision)
+}
+
+// NewSPRTStopperWithProgress is like NewSPRTStopper but also fires
+// onProgress (if non-nil) after every relevant game with the current
+// SPRTResult — useful for live LLR display in tournament UIs. Both
+// callbacks are invoked from worker goroutines and must be safe for
+// concurrent use. Calls happen in chronological game-completion order
+// thanks to internal locking, so the LLR is monotonically updated.
+func NewSPRTStopperWithProgress(c SPRTConfig, candidateName string, onProgress, onDecision func(SPRTResult)) func(GameOutcome) bool {
 	var (
-		mu       sync.Mutex
-		w, d, l  int
-		decided  bool
+		mu      sync.Mutex
+		w, d, l int
+		decided bool
 	)
 	return func(o GameOutcome) bool {
 		if o.Err != nil || o.Result == nil {
@@ -156,6 +166,9 @@ func NewSPRTStopper(c SPRTConfig, candidateName string, onDecision func(SPRTResu
 			return false
 		}
 		res := c.Evaluate(w, d, l)
+		if onProgress != nil {
+			onProgress(res)
+		}
 		if res.Decision != SPRTContinue {
 			decided = true
 			if onDecision != nil {

@@ -97,6 +97,52 @@ func TestSPRTEvaluateOutcomesAggregates(t *testing.T) {
 	}
 }
 
+func TestSPRTStopperWithProgressFiresEveryGame(t *testing.T) {
+	// Progress callback should fire after every relevant game (continue
+	// and decided), with monotonically increasing LLR for a winning
+	// candidate. Decision callback fires exactly once at termination.
+	c := SPRTConfig{Elo0: 0, Elo1: 20, Alpha: 0.05, Beta: 0.05}
+
+	var (
+		updates   []SPRTResult
+		decisions []SPRTResult
+	)
+	stop := NewSPRTStopperWithProgress(c, "Cand",
+		func(r SPRTResult) { updates = append(updates, r) },
+		func(r SPRTResult) { decisions = append(decisions, r) },
+	)
+
+	// Cand wins every game; alternate colors so both branches exercise.
+	for i := range 200 {
+		var o GameOutcome
+		if i%2 == 0 {
+			o = outcome("Cand", "Base", chess.WhiteWins)
+		} else {
+			o = outcome("Base", "Cand", chess.BlackWins)
+		}
+		if stop(o) {
+			break
+		}
+	}
+
+	if len(updates) == 0 {
+		t.Fatal("onProgress never fired")
+	}
+	if len(decisions) != 1 {
+		t.Errorf("onDecision fired %d times, want 1", len(decisions))
+	}
+	for i := 1; i < len(updates); i++ {
+		if updates[i].LLR < updates[i-1].LLR {
+			t.Errorf("LLR not monotonically rising for winning candidate: updates[%d]=%v < updates[%d]=%v",
+				i, updates[i].LLR, i-1, updates[i-1].LLR)
+			break
+		}
+	}
+	if updates[len(updates)-1].Decision != SPRTAcceptH1 {
+		t.Errorf("final progress decision = %v, want acceptH1", updates[len(updates)-1].Decision)
+	}
+}
+
 func TestSPRTDecisionString(t *testing.T) {
 	cases := map[SPRTDecision]string{
 		SPRTContinue:  "continue",
