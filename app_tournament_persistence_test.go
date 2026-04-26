@@ -2,6 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -185,6 +189,56 @@ func TestHydrateMarksRunningInterrupted(t *testing.T) {
 	}
 	if got.Status != "interrupted" {
 		t.Fatalf("expected interrupted, got %q", got.Status)
+	}
+}
+
+func TestPersistedEngineSpecHash(t *testing.T) {
+	// Create a small fake binary; compute its SHA256 manually for assertion.
+	dir := t.TempDir()
+	binPath := filepath.Join(dir, "fake-engine")
+	contents := []byte("not a real engine, just bytes")
+	if err := os.WriteFile(binPath, contents, 0o755); err != nil {
+		t.Fatalf("write fake binary: %v", err)
+	}
+	sum := sha256.Sum256(contents)
+	wantSha := hex.EncodeToString(sum[:])
+
+	po := toPersistedEngineSpec(tournament.EngineSpec{Name: "Fake", BinaryPath: binPath})
+	if po.Sha256 != wantSha {
+		t.Fatalf("Sha256 mismatch: got %q want %q", po.Sha256, wantSha)
+	}
+
+	// Hash round-trips into the JSON detail and survives persist+hydrate.
+	o := tournament.GameOutcome{
+		Pairing: tournament.Pairing{
+			GameNumber: 1,
+			White:      tournament.EngineSpec{Name: "Fake", BinaryPath: binPath},
+			Black:      tournament.EngineSpec{Name: "Fake2", BinaryPath: binPath},
+		},
+		Result: &tournament.Result{Outcome: chess.Drawn, Reason: chess.ReasonAdjudication},
+	}
+	persisted := toPersistedOutcome(o)
+	if persisted.White.Sha256 != wantSha || persisted.Black.Sha256 != wantSha {
+		t.Fatalf("persisted hashes wrong: %+v", persisted)
+	}
+	blob, err := json.Marshal(persisted)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var rt persistedOutcome
+	if err := json.Unmarshal(blob, &rt); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if rt.White.Sha256 != wantSha {
+		t.Fatalf("hydrated Sha256 lost: %q", rt.White.Sha256)
+	}
+
+	// Empty path returns empty hash without erroring.
+	if got := computeBinaryHash(""); got != "" {
+		t.Fatalf("empty path: want \"\", got %q", got)
+	}
+	if got := computeBinaryHash(filepath.Join(dir, "does-not-exist")); got != "" {
+		t.Fatalf("missing file: want \"\", got %q", got)
 	}
 }
 

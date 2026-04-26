@@ -220,8 +220,14 @@
       <span class="round muted">Round {detail.round}</span>
       <span class="players">
         <strong>{detail.white}</strong>
+        {#if detail.whiteSha}
+          <span class="sha" title={detail.whiteSha}>#{detail.whiteSha.slice(0, 7)}</span>
+        {/if}
         <span class="muted">vs</span>
         <strong>{detail.black}</strong>
+        {#if detail.blackSha}
+          <span class="sha" title={detail.blackSha}>#{detail.blackSha.slice(0, 7)}</span>
+        {/if}
       </span>
       <span class="result">{detail.result || '*'}</span>
       {#if detail.reason}
@@ -419,6 +425,16 @@
     border-radius: var(--radius-sm);
     font-family: ui-monospace, SFMono-Regular, monospace;
     font-size: 0.85rem;
+  }
+
+  .sha {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    background: var(--surface-2);
+    padding: 1px 5px;
+    border-radius: var(--radius-sm);
+    cursor: help;
   }
 
   .actions {

@@ -288,7 +288,7 @@ Scoped to tournament storage, not generic game library.
 - [x] Migration system — `schema_version` table, append-only `migrations[]` slice
 - [x] Tournaments table (config, status, results)
 - [x] Games table (linked to tournament, includes embedded analysis)
-- [ ] Engine version table (track which build played which game)
+- [x] Engine version table (track which build played which game) — SHA256 stored per persisted engine, surfaced as short hash in GameView header
 - [ ] Position index (Zobrist hash) for repetition lookup and game search
 - [x] Tournament list / search UI — history panel with delete, re-run, winner column, timestamp
 - [x] Re-run tournament with same config — copies stored `TournamentSpec` back into the setup form

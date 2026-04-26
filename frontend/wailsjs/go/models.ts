@@ -184,23 +184,27 @@ export namespace main {
 	    round: string;
 	    white: string;
 	    black: string;
+	    whiteSha?: string;
+	    blackSha?: string;
 	    result: string;
 	    reason?: string;
 	    error?: string;
 	    startFen: string;
 	    pgn?: string;
 	    moves: MoveDetail[];
-	
+
 	    static createFrom(source: any = {}) {
 	        return new GameDetail(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.gameNumber = source["gameNumber"];
 	        this.round = source["round"];
 	        this.white = source["white"];
 	        this.black = source["black"];
+	        this.whiteSha = source["whiteSha"];
+	        this.blackSha = source["blackSha"];
 	        this.result = source["result"];
 	        this.reason = source["reason"];
 	        this.error = source["error"];

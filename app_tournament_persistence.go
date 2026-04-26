@@ -2,9 +2,14 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"os"
+	"sync"
 	"time"
 
 	"rungine/internal/chess"
@@ -12,6 +17,47 @@ import (
 	"rungine/internal/tournament"
 	"rungine/internal/uci"
 )
+
+// binhashCache caches SHA256 by binary path. Entries are invalidated when
+// the file's size or modtime changes, so a replaced binary is re-hashed.
+var binhashCache sync.Map // path -> binhashEntry
+
+type binhashEntry struct {
+	size  int64
+	mtime time.Time
+	sha   string
+}
+
+// computeBinaryHash returns the SHA256 hex of the binary at path. Cached
+// keyed by (path, size, mtime). Returns "" when path is empty or the file
+// is unreadable so callers can treat the hash as best-effort metadata.
+func computeBinaryHash(path string) string {
+	if path == "" {
+		return ""
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return ""
+	}
+	if v, ok := binhashCache.Load(path); ok {
+		e := v.(binhashEntry)
+		if e.size == info.Size() && e.mtime.Equal(info.ModTime()) {
+			return e.sha
+		}
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return ""
+	}
+	sum := hex.EncodeToString(h.Sum(nil))
+	binhashCache.Store(path, binhashEntry{size: info.Size(), mtime: info.ModTime(), sha: sum})
+	return sum
+}
 
 // persistedOutcome is the JSON shape stored in games.detail. It carries
 // just enough data to rebuild a tournament.GameOutcome for replay and
@@ -31,6 +77,7 @@ type persistedOutcome struct {
 type persistedEngineSpec struct {
 	Name       string            `json:"name"`
 	BinaryPath string            `json:"binaryPath,omitempty"`
+	Sha256     string            `json:"sha256,omitempty"`
 	Options    map[string]string `json:"options,omitempty"`
 }
 
@@ -114,7 +161,11 @@ func toPersistedOutcome(o tournament.GameOutcome) persistedOutcome {
 }
 
 func toPersistedEngineSpec(s tournament.EngineSpec) persistedEngineSpec {
-	out := persistedEngineSpec{Name: s.Name, BinaryPath: s.BinaryPath}
+	out := persistedEngineSpec{
+		Name:       s.Name,
+		BinaryPath: s.BinaryPath,
+		Sha256:     computeBinaryHash(s.BinaryPath),
+	}
 	if len(s.Options) > 0 {
 		out.Options = map[string]string{}
 		for k, v := range s.Options {

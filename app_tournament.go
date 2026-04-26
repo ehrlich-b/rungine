@@ -103,6 +103,8 @@ type GameDetail struct {
 	Round      string       `json:"round"`
 	White      string       `json:"white"`
 	Black      string       `json:"black"`
+	WhiteSha   string       `json:"whiteSha,omitempty"`
+	BlackSha   string       `json:"blackSha,omitempty"`
 	Result     string       `json:"result"`
 	Reason     string       `json:"reason,omitempty"`
 	Error      string       `json:"error,omitempty"`
@@ -763,6 +765,8 @@ func buildGameDetail(o tournament.GameOutcome) (GameDetail, error) {
 		Round:      o.Pairing.Round,
 		White:      o.Pairing.White.Name,
 		Black:      o.Pairing.Black.Name,
+		WhiteSha:   computeBinaryHash(o.Pairing.White.BinaryPath),
+		BlackSha:   computeBinaryHash(o.Pairing.Black.BinaryPath),
 		PGN:        o.PGN,
 	}
 	if o.Result != nil {
