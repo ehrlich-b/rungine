@@ -229,7 +229,7 @@ The "world-class" half. TCEC-quality live broadcast.
 - [x] Format picker (match, round-robin, gauntlet) — Swiss/SPRT still unsupported in GUI
 - [x] Engine multi-select from installed
 - [ ] Per-engine UCI option overrides at tournament level
-- [x] Time control picker — movetime ms only; T+I and depth/nodes still TODO
+- [x] Time control picker — movetime, T+I, depth, nodes
 - [ ] Opening source: random startpos / PGN file / Polyglot book / specific FEN
 - [x] Concurrency setting
 - [x] Save tournament config presets — localStorage-backed preset list in setup form

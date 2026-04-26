@@ -31,6 +31,9 @@ type TournamentSpec struct {
 	Concurrency   int                   `json:"concurrency"`
 	TimeControlMs int                   `json:"timeControlMs"`
 	DepthLimit    int                   `json:"depthLimit"`
+	NodesLimit    int64                 `json:"nodesLimit"`
+	TcInitialMs   int                   `json:"tcInitialMs"`
+	TcIncrementMs int                   `json:"tcIncrementMs"`
 	Event         string                `json:"event"`
 	PairMode      bool                  `json:"pairMode"`
 	MaxPlies      int                   `json:"maxPlies"`
@@ -406,10 +409,17 @@ func (m *TournamentManager) buildPairings(spec TournamentSpec, specs []tournamen
 
 func timeControlFromSpec(spec TournamentSpec) tournament.TimeControl {
 	switch {
+	case spec.TcInitialMs > 0:
+		return tournament.TimeControl{
+			Initial:   time.Duration(spec.TcInitialMs) * time.Millisecond,
+			Increment: time.Duration(spec.TcIncrementMs) * time.Millisecond,
+		}
 	case spec.TimeControlMs > 0:
 		return tournament.TimeControl{FixedMovetime: time.Duration(spec.TimeControlMs) * time.Millisecond}
 	case spec.DepthLimit > 0:
 		return tournament.TimeControl{FixedDepth: spec.DepthLimit}
+	case spec.NodesLimit > 0:
+		return tournament.TimeControl{FixedNodes: spec.NodesLimit}
 	default:
 		return tournament.TimeControl{FixedMovetime: 200 * time.Millisecond}
 	}

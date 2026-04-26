@@ -17,11 +17,18 @@
     showOptions: boolean;
   };
 
+  type TcMode = 'movetime' | 'tplus' | 'depth' | 'nodes';
+
   let installed = $state<registry.InstalledEngine[]>([]);
   let slots = $state<Slot[]>([]);
   let format = $state<Format>('match');
   let games = $state(4);
+  let tcMode = $state<TcMode>('movetime');
   let movetimeMs = $state(200);
+  let tcInitialSec = $state(60);
+  let tcIncrementSec = $state(0.6);
+  let depthLimit = $state(10);
+  let nodesLimit = $state(100000);
   let concurrency = $state(1);
   let pairMode = $state(true);
 
@@ -36,7 +43,12 @@
     slots: Slot[];
     format: Format;
     games: number;
+    tcMode: TcMode;
     movetimeMs: number;
+    tcInitialSec: number;
+    tcIncrementSec: number;
+    depthLimit: number;
+    nodesLimit: number;
     concurrency: number;
     pairMode: boolean;
     sprtEnabled: boolean;
@@ -77,7 +89,12 @@
       slots: slots.map((s) => ({ ...s, showOptions: false })),
       format,
       games,
+      tcMode,
       movetimeMs,
+      tcInitialSec,
+      tcIncrementSec,
+      depthLimit,
+      nodesLimit,
       concurrency,
       pairMode,
       sprtEnabled,
@@ -97,7 +114,12 @@
     slots = p.slots.map((s) => ({ ...s }));
     format = p.format;
     games = p.games;
+    tcMode = p.tcMode ?? 'movetime';
     movetimeMs = p.movetimeMs;
+    tcInitialSec = p.tcInitialSec ?? 60;
+    tcIncrementSec = p.tcIncrementSec ?? 0;
+    depthLimit = p.depthLimit ?? 10;
+    nodesLimit = p.nodesLimit ?? 100000;
     concurrency = p.concurrency;
     pairMode = p.pairMode;
     sprtEnabled = p.sprtEnabled;
@@ -199,7 +221,18 @@
   function canStart(): boolean {
     if (starting) return false;
     if (format === 'match' && slots.length !== 2) return false;
-    return slots.length >= 2 && games >= 1 && movetimeMs >= 50;
+    if (slots.length < 2 || games < 1) return false;
+    switch (tcMode) {
+      case 'movetime':
+        return movetimeMs >= 50;
+      case 'tplus':
+        return tcInitialSec >= 1;
+      case 'depth':
+        return depthLimit >= 1;
+      case 'nodes':
+        return nodesLimit >= 100;
+    }
+    return false;
   }
 
   async function start() {
@@ -219,8 +252,11 @@
         engines,
         games,
         concurrency,
-        timeControlMs: movetimeMs,
-        depthLimit: 0,
+        timeControlMs: tcMode === 'movetime' ? movetimeMs : 0,
+        depthLimit: tcMode === 'depth' ? depthLimit : 0,
+        nodesLimit: tcMode === 'nodes' ? nodesLimit : 0,
+        tcInitialMs: tcMode === 'tplus' ? Math.round(tcInitialSec * 1000) : 0,
+        tcIncrementMs: tcMode === 'tplus' ? Math.round(tcIncrementSec * 1000) : 0,
         event: 'Rungine GUI',
         pairMode,
         maxPlies: 400,
@@ -440,10 +476,6 @@
             <input type="number" min="1" max="1000" bind:value={games} />
           </label>
           <label>
-            <span class="label">Movetime (ms)</span>
-            <input type="number" min="50" max="60000" step="50" bind:value={movetimeMs} />
-          </label>
-          <label>
             <span class="label">Concurrency</span>
             <input type="number" min="1" max="32" bind:value={concurrency} />
           </label>
@@ -451,6 +483,47 @@
             <input type="checkbox" bind:checked={pairMode} />
             <span>Pair mode (mirror colors)</span>
           </label>
+        </div>
+
+        <div class="field">
+          <span class="label">Time control</span>
+          <div class="seg">
+            {#each ['movetime', 'tplus', 'depth', 'nodes'] as m (m)}
+              <button
+                type="button"
+                class:active={tcMode === m}
+                onclick={() => (tcMode = m as TcMode)}>
+                {m === 'tplus' ? 'time + inc' : m}
+              </button>
+            {/each}
+          </div>
+          <div class="grid tc-grid">
+            {#if tcMode === 'movetime'}
+              <label>
+                <span class="label">Movetime (ms)</span>
+                <input type="number" min="50" max="60000" step="50" bind:value={movetimeMs} />
+              </label>
+            {:else if tcMode === 'tplus'}
+              <label>
+                <span class="label">Initial (s)</span>
+                <input type="number" min="1" max="10800" step="1" bind:value={tcInitialSec} />
+              </label>
+              <label>
+                <span class="label">Increment (s)</span>
+                <input type="number" min="0" max="60" step="0.1" bind:value={tcIncrementSec} />
+              </label>
+            {:else if tcMode === 'depth'}
+              <label>
+                <span class="label">Depth</span>
+                <input type="number" min="1" max="60" step="1" bind:value={depthLimit} />
+              </label>
+            {:else if tcMode === 'nodes'}
+              <label>
+                <span class="label">Nodes</span>
+                <input type="number" min="100" max="1000000000" step="1000" bind:value={nodesLimit} />
+              </label>
+            {/if}
+          </div>
         </div>
 
         {#if format === 'match'}

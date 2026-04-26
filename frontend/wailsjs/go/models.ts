@@ -289,6 +289,9 @@ export namespace main {
 	    concurrency: number;
 	    timeControlMs: number;
 	    depthLimit: number;
+	    nodesLimit: number;
+	    tcInitialMs: number;
+	    tcIncrementMs: number;
 	    event: string;
 	    pairMode: boolean;
 	    maxPlies: number;
@@ -314,6 +317,9 @@ export namespace main {
 	        this.concurrency = source["concurrency"];
 	        this.timeControlMs = source["timeControlMs"];
 	        this.depthLimit = source["depthLimit"];
+	        this.nodesLimit = source["nodesLimit"];
+	        this.tcInitialMs = source["tcInitialMs"];
+	        this.tcIncrementMs = source["tcIncrementMs"];
 	        this.event = source["event"];
 	        this.pairMode = source["pairMode"];
 	        this.maxPlies = source["maxPlies"];
