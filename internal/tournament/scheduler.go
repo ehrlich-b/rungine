@@ -140,6 +140,13 @@ type GameOutcome struct {
 // Scheduler runs multiple games concurrently using its configured factory.
 type Scheduler struct {
 	cfg SchedulerConfig
+
+	pauseMu sync.Mutex
+	paused  bool
+	// resumeCh is closed when the scheduler is not paused and replaced
+	// with a fresh open channel each time Pause is called. Dispatch
+	// blocks on whichever channel is current at the time it checks.
+	resumeCh chan struct{}
 }
 
 // NewScheduler constructs a Scheduler. Factory is required.
@@ -151,6 +158,79 @@ func NewScheduler(cfg SchedulerConfig) (*Scheduler, error) {
 		cfg.Concurrency = 1
 	}
 	return &Scheduler{cfg: cfg}, nil
+}
+
+// Pause halts dispatch of new pairings. In-flight games run to
+// completion. Safe to call from any goroutine. Calling Pause while
+// already paused is a no-op.
+func (s *Scheduler) Pause() {
+	s.pauseMu.Lock()
+	defer s.pauseMu.Unlock()
+	if s.paused {
+		return
+	}
+	s.paused = true
+	s.resumeCh = make(chan struct{})
+}
+
+// Resume releases dispatch after a Pause. Calling Resume when not
+// paused is a no-op.
+func (s *Scheduler) Resume() {
+	s.pauseMu.Lock()
+	defer s.pauseMu.Unlock()
+	if !s.paused {
+		return
+	}
+	s.paused = false
+	close(s.resumeCh)
+	s.resumeCh = nil
+}
+
+// Paused reports whether dispatch is currently halted.
+func (s *Scheduler) Paused() bool {
+	s.pauseMu.Lock()
+	defer s.pauseMu.Unlock()
+	return s.paused
+}
+
+// waitWhilePaused blocks until either the scheduler is resumed or ctx
+// fires. Returns ctx.Err on cancellation, nil otherwise.
+func (s *Scheduler) waitWhilePaused(ctx context.Context) error {
+	s.pauseMu.Lock()
+	if !s.paused {
+		s.pauseMu.Unlock()
+		return nil
+	}
+	ch := s.resumeCh
+	s.pauseMu.Unlock()
+	select {
+	case <-ch:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// acquireSlot waits until pause is cleared, acquires a worker slot from
+// sem, and re-checks pause. If pause flipped between the wait and the
+// acquire, the slot is released and the loop retries. Returns ctx.Err
+// if cancelled at any point.
+func (s *Scheduler) acquireSlot(ctx context.Context, sem chan struct{}) error {
+	for {
+		if err := s.waitWhilePaused(ctx); err != nil {
+			return err
+		}
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		if !s.Paused() {
+			return nil
+		}
+		// Pause flipped while we waited for sem; release and re-check.
+		<-sem
+	}
 }
 
 // Run executes all pairings, returning outcomes in the same order. Each
@@ -169,10 +249,8 @@ func (s *Scheduler) Run(ctx context.Context, pairings []Pairing) []GameOutcome {
 			outcomes[i] = GameOutcome{Pairing: p, Err: ErrSchedulerStopped}
 			continue
 		}
-		select {
-		case sem <- struct{}{}:
-		case <-ctx.Done():
-			outcomes[i] = GameOutcome{Pairing: p, Err: ctx.Err()}
+		if err := s.acquireSlot(ctx, sem); err != nil {
+			outcomes[i] = GameOutcome{Pairing: p, Err: err}
 			continue
 		}
 		// Re-check after sem acquire: ShouldStop may have flipped while

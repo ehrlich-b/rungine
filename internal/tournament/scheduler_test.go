@@ -453,3 +453,182 @@ func TestSchedulerContextCancelled(t *testing.T) {
 		t.Errorf("expected at least one outcome with context.Canceled; got none")
 	}
 }
+
+func TestSchedulerPauseDelaysDispatch(t *testing.T) {
+	// Pause before Run, kick off dispatch in a goroutine, verify nothing
+	// completes until Resume is called.
+	st := scriptedTable{
+		"W": func() *scripted { return newScripted([]string{"e2e4"}) },
+		"B": func() *scripted { return newScripted([]string{"e7e5"}) },
+	}
+
+	var completed atomic.Int32
+	sch, _ := NewScheduler(SchedulerConfig{
+		Factory:        st.factory,
+		Concurrency:    1,
+		TimeControl:    TimeControl{FixedDepth: 1},
+		MaxPlies:       2,
+		OnGameComplete: func(_ GameOutcome) { completed.Add(1) },
+	})
+
+	pairings := make([]Pairing, 3)
+	for i := range pairings {
+		pairings[i] = Pairing{
+			GameNumber: i + 1,
+			White:      EngineSpec{Name: "W"},
+			Black:      EngineSpec{Name: "B"},
+		}
+	}
+
+	sch.Pause()
+	if !sch.Paused() {
+		t.Error("Paused() = false after Pause()")
+	}
+
+	done := make(chan []GameOutcome, 1)
+	go func() {
+		done <- sch.Run(context.Background(), pairings)
+	}()
+
+	// While paused, no game should complete.
+	time.Sleep(50 * time.Millisecond)
+	if n := completed.Load(); n != 0 {
+		t.Errorf("completed = %d while paused, want 0", n)
+	}
+	select {
+	case out := <-done:
+		t.Fatalf("Run returned while paused: %v", out)
+	default:
+	}
+
+	sch.Resume()
+	if sch.Paused() {
+		t.Error("Paused() = true after Resume()")
+	}
+
+	select {
+	case out := <-done:
+		if len(out) != 3 {
+			t.Errorf("len(outcomes) = %d, want 3", len(out))
+		}
+		for i, o := range out {
+			if o.Err != nil {
+				t.Errorf("outcomes[%d].Err = %v", i, o.Err)
+			}
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run did not complete after Resume")
+	}
+}
+
+func TestSchedulerPauseMidRun(t *testing.T) {
+	// Run starts, complete one game, pause, verify subsequent games
+	// don't start until Resume.
+	st := scriptedTable{
+		"W": func() *scripted { return newScripted([]string{"e2e4"}) },
+		"B": func() *scripted { return newScripted([]string{"e7e5"}) },
+	}
+
+	var (
+		mu        sync.Mutex
+		started   int
+		completed int
+		sch       *Scheduler
+	)
+	sch, _ = NewScheduler(SchedulerConfig{
+		Factory:     st.factory,
+		Concurrency: 1,
+		TimeControl: TimeControl{FixedDepth: 1},
+		MaxPlies:    2,
+		OnGameStart: func(_ Pairing) {
+			mu.Lock()
+			started++
+			mu.Unlock()
+		},
+		OnGameComplete: func(_ GameOutcome) {
+			mu.Lock()
+			completed++
+			c := completed
+			mu.Unlock()
+			if c == 1 {
+				// Pause from inside the first game's completion callback.
+				sch.Pause()
+			}
+		},
+	})
+
+	pairings := make([]Pairing, 4)
+	for i := range pairings {
+		pairings[i] = Pairing{
+			GameNumber: i + 1,
+			White:      EngineSpec{Name: "W"},
+			Black:      EngineSpec{Name: "B"},
+		}
+	}
+
+	done := make(chan []GameOutcome, 1)
+	go func() {
+		done <- sch.Run(context.Background(), pairings)
+	}()
+
+	// Wait long enough for the next dispatch to be blocked.
+	time.Sleep(100 * time.Millisecond)
+	mu.Lock()
+	if started != 1 || completed != 1 {
+		t.Errorf("after pause: started=%d completed=%d, want 1/1", started, completed)
+	}
+	mu.Unlock()
+
+	sch.Resume()
+
+	select {
+	case out := <-done:
+		if len(out) != 4 {
+			t.Errorf("len(outcomes) = %d, want 4", len(out))
+		}
+		for i, o := range out {
+			if o.Err != nil {
+				t.Errorf("outcomes[%d].Err = %v", i, o.Err)
+			}
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run did not complete after Resume")
+	}
+}
+
+func TestSchedulerPauseCancelledByContext(t *testing.T) {
+	// Cancelling ctx while paused should release the wait and surface
+	// context.Canceled on remaining pairings.
+	st := scriptedTable{
+		"W": func() *scripted { return newScripted([]string{"e2e4"}) },
+		"B": func() *scripted { return newScripted([]string{"e7e5"}) },
+	}
+
+	sch, _ := NewScheduler(SchedulerConfig{
+		Factory:     st.factory,
+		Concurrency: 1,
+		TimeControl: TimeControl{FixedDepth: 1},
+		MaxPlies:    2,
+	})
+
+	pairings := []Pairing{{
+		GameNumber: 1,
+		White:      EngineSpec{Name: "W"},
+		Black:      EngineSpec{Name: "B"},
+	}}
+
+	sch.Pause()
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(30 * time.Millisecond)
+		cancel()
+	}()
+
+	out := sch.Run(ctx, pairings)
+	if len(out) != 1 {
+		t.Fatalf("len(outcomes) = %d, want 1", len(out))
+	}
+	if !errors.Is(out[0].Err, context.Canceled) {
+		t.Errorf("outcomes[0].Err = %v, want context.Canceled", out[0].Err)
+	}
+}

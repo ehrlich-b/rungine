@@ -157,8 +157,8 @@ Wraps `github.com/notnil/chess` with a UCI-oriented API for the arbiter.
 - [x] Per-game engine instances (engines hold state, never share — EngineFactory spawns fresh per game)
 - [x] Pair queue: scheduler accepts a slice of Pairings and dispatches them in order
 - [x] Per-game lifecycle callbacks (OnGameStart, OnGameComplete) for live progress reporting
-- [ ] Resource accounting: total threads, hash, NN backends across concurrent games
-- [ ] Pause / resume tournament
+- [x] Resource accounting: total threads, hash across concurrent games — `EstimateUsage` in `internal/tournament/resources.go`
+- [x] Pause / resume tournament — `Scheduler.Pause`/`Resume`/`Paused`
 - [ ] Resume from on-disk state after process restart
 
 ---
