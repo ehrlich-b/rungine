@@ -1,5 +1,5 @@
 export namespace main {
-
+	
 	export class AnalysisParams {
 	    fen: string;
 	    moves: string[];
@@ -7,11 +7,11 @@ export namespace main {
 	    infinite: boolean;
 	    depth: number;
 	    moveTime: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnalysisParams(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.fen = source["fen"];
@@ -22,6 +22,58 @@ export namespace main {
 	        this.moveTime = source["moveTime"];
 	    }
 	}
+	export class CrosstableCell {
+	    wins: number;
+	    draws: number;
+	    losses: number;
+	    games: number;
+	    points: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CrosstableCell(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.wins = source["wins"];
+	        this.draws = source["draws"];
+	        this.losses = source["losses"];
+	        this.games = source["games"];
+	        this.points = source["points"];
+	    }
+	}
+	export class CrosstableData {
+	    players: string[];
+	    cells: CrosstableCell[][];
+	
+	    static createFrom(source: any = {}) {
+	        return new CrosstableData(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.players = source["players"];
+	        this.cells = this.convertValues(source["cells"], CrosstableCell);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class EngineOptionDef {
 	    name: string;
 	    type: string;
@@ -31,11 +83,11 @@ export namespace main {
 	    vars?: string[];
 	    description?: string;
 	    recommended?: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new EngineOptionDef(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
@@ -51,71 +103,36 @@ export namespace main {
 	export class EngineOptionConfig {
 	    definitions: EngineOptionDef[];
 	    values: Record<string, string>;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new EngineOptionConfig(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.definitions = (source["definitions"] ?? []).map((d: any) => new EngineOptionDef(d));
-	        this.values = source["values"] ?? {};
+	        this.definitions = this.convertValues(source["definitions"], EngineOptionDef);
+	        this.values = source["values"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
-	export class TournamentEngineRef {
-	    id: string;
-	    name?: string;
-	    options?: Record<string, string>;
-
-	    static createFrom(source: any = {}) {
-	        return new TournamentEngineRef(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.name = source["name"];
-	        this.options = source["options"];
-	    }
-	}
-	export class TournamentSpec {
-	    format: string;
-	    engines: TournamentEngineRef[];
-	    games: number;
-	    concurrency: number;
-	    timeControlMs: number;
-	    depthLimit: number;
-	    event: string;
-	    pairMode: boolean;
-	    maxPlies: number;
-	    resignScore: number;
-	    resignMoves: number;
-	    drawScore: number;
-	    drawMoves: number;
-	    drawMinPly: number;
-
-	    static createFrom(source: any = {}) {
-	        return new TournamentSpec(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.format = source["format"];
-	        this.engines = (source["engines"] ?? []).map((e: any) => new TournamentEngineRef(e));
-	        this.games = source["games"];
-	        this.concurrency = source["concurrency"];
-	        this.timeControlMs = source["timeControlMs"];
-	        this.depthLimit = source["depthLimit"];
-	        this.event = source["event"];
-	        this.pairMode = source["pairMode"];
-	        this.maxPlies = source["maxPlies"];
-	        this.resignScore = source["resignScore"];
-	        this.resignMoves = source["resignMoves"];
-	        this.drawScore = source["drawScore"];
-	        this.drawMoves = source["drawMoves"];
-	        this.drawMinPly = source["drawMinPly"];
-	    }
-	}
+	
 	export class MoveDetail {
 	    ply: number;
 	    side: string;
@@ -127,11 +144,11 @@ export namespace main {
 	    evalMate?: number;
 	    elapsedMs: number;
 	    clockAfterMs: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new MoveDetail(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.ply = source["ply"];
@@ -157,11 +174,11 @@ export namespace main {
 	    startFen: string;
 	    pgn?: string;
 	    moves: MoveDetail[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new GameDetail(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.gameNumber = source["gameNumber"];
@@ -173,8 +190,26 @@ export namespace main {
 	        this.error = source["error"];
 	        this.startFen = source["startFen"];
 	        this.pgn = source["pgn"];
-	        this.moves = (source["moves"] ?? []).map((m: any) => new MoveDetail(m));
+	        this.moves = this.convertValues(source["moves"], MoveDetail);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class GameRow {
 	    gameNumber: number;
@@ -185,11 +220,11 @@ export namespace main {
 	    reason: string;
 	    plies: number;
 	    error?: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new GameRow(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.gameNumber = source["gameNumber"];
@@ -202,6 +237,7 @@ export namespace main {
 	        this.error = source["error"];
 	    }
 	}
+	
 	export class PlayerScoreRow {
 	    name: string;
 	    wins: number;
@@ -212,11 +248,11 @@ export namespace main {
 	    elo: number;
 	    eloLo: number;
 	    eloHi: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new PlayerScoreRow(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
@@ -230,79 +266,135 @@ export namespace main {
 	        this.eloHi = source["eloHi"];
 	    }
 	}
-	export class CrosstableCell {
-	    wins: number;
-	    draws: number;
-	    losses: number;
-	    games: number;
-	    points: number;
-
+	export class TournamentEngineRef {
+	    id: string;
+	    name?: string;
+	    options?: Record<string, string>;
+	
 	    static createFrom(source: any = {}) {
-	        return new CrosstableCell(source);
+	        return new TournamentEngineRef(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.wins = source["wins"];
-	        this.draws = source["draws"];
-	        this.losses = source["losses"];
-	        this.games = source["games"];
-	        this.points = source["points"];
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.options = source["options"];
 	    }
 	}
-	export class CrosstableData {
-	    players: string[];
-	    cells: CrosstableCell[][];
-
+	export class TournamentSpec {
+	    format: string;
+	    engines: TournamentEngineRef[];
+	    games: number;
+	    concurrency: number;
+	    timeControlMs: number;
+	    depthLimit: number;
+	    event: string;
+	    pairMode: boolean;
+	    maxPlies: number;
+	    resignScore: number;
+	    resignMoves: number;
+	    drawScore: number;
+	    drawMoves: number;
+	    drawMinPly: number;
+	
 	    static createFrom(source: any = {}) {
-	        return new CrosstableData(source);
+	        return new TournamentSpec(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.players = source["players"] ?? [];
-	        this.cells = (source["cells"] ?? []).map((row: any[]) =>
-	            (row ?? []).map((c) => new CrosstableCell(c)),
-	        );
+	        this.format = source["format"];
+	        this.engines = this.convertValues(source["engines"], TournamentEngineRef);
+	        this.games = source["games"];
+	        this.concurrency = source["concurrency"];
+	        this.timeControlMs = source["timeControlMs"];
+	        this.depthLimit = source["depthLimit"];
+	        this.event = source["event"];
+	        this.pairMode = source["pairMode"];
+	        this.maxPlies = source["maxPlies"];
+	        this.resignScore = source["resignScore"];
+	        this.resignMoves = source["resignMoves"];
+	        this.drawScore = source["drawScore"];
+	        this.drawMoves = source["drawMoves"];
+	        this.drawMinPly = source["drawMinPly"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class TournamentSummary {
 	    id: string;
 	    spec: TournamentSpec;
 	    status: string;
 	    error?: string;
-	    startedAt: string;
-	    finishedAt?: string;
+	    // Go type: time
+	    startedAt: any;
+	    // Go type: time
+	    finishedAt?: any;
 	    gamesTotal: number;
 	    gamesPlayed: number;
 	    outcomes: GameRow[];
 	    standings: PlayerScoreRow[];
 	    crosstable: CrosstableData;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new TournamentSummary(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
-	        this.spec = source["spec"] ? new TournamentSpec(source["spec"]) : (undefined as any);
+	        this.spec = this.convertValues(source["spec"], TournamentSpec);
 	        this.status = source["status"];
 	        this.error = source["error"];
-	        this.startedAt = source["startedAt"];
-	        this.finishedAt = source["finishedAt"];
+	        this.startedAt = this.convertValues(source["startedAt"], null);
+	        this.finishedAt = this.convertValues(source["finishedAt"], null);
 	        this.gamesTotal = source["gamesTotal"];
 	        this.gamesPlayed = source["gamesPlayed"];
-	        this.outcomes = (source["outcomes"] ?? []).map((g: any) => new GameRow(g));
-	        this.standings = (source["standings"] ?? []).map((s: any) => new PlayerScoreRow(s));
-	        this.crosstable = new CrosstableData(source["crosstable"] ?? {});
+	        this.outcomes = this.convertValues(source["outcomes"], GameRow);
+	        this.standings = this.convertValues(source["standings"], PlayerScoreRow);
+	        this.crosstable = this.convertValues(source["crosstable"], CrosstableData);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }
 
 export namespace registry {
-
+	
 	export class EngineInfo {
 	    id: string;
 	    name: string;
@@ -312,11 +404,11 @@ export namespace registry {
 	    eloEstimate: number;
 	    requiresNetwork: boolean;
 	    hasBuild: boolean;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new EngineInfo(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -335,14 +427,16 @@ export namespace registry {
 	    Name: string;
 	    Version: string;
 	    BinaryPath: string;
+	    NetworkPath: string;
 	    InstalledAt: string;
 	    BuildKey: string;
+	    NetworkKey: string;
 	    OptionValues: Record<string, string>;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new InstalledEngine(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.ID = source["ID"];
@@ -350,8 +444,10 @@ export namespace registry {
 	        this.Name = source["Name"];
 	        this.Version = source["Version"];
 	        this.BinaryPath = source["BinaryPath"];
+	        this.NetworkPath = source["NetworkPath"];
 	        this.InstalledAt = source["InstalledAt"];
 	        this.BuildKey = source["BuildKey"];
+	        this.NetworkKey = source["NetworkKey"];
 	        this.OptionValues = source["OptionValues"];
 	    }
 	}
@@ -359,18 +455,18 @@ export namespace registry {
 }
 
 export namespace uci {
-
+	
 	export class EngineInfo {
 	    id: string;
 	    name: string;
 	    author: string;
 	    binaryPath: string;
 	    state: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new EngineInfo(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -382,3 +478,4 @@ export namespace uci {
 	}
 
 }
+

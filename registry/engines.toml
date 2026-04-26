@@ -81,7 +81,7 @@ extract = "zip"
 # macOS builds
 [engines.stockfish-17.builds.darwin-arm64]
 url = "https://github.com/official-stockfish/Stockfish/releases/download/sf_17/stockfish-macos-m1-apple-silicon.tar"
-sha256 = "a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8"
+sha256 = "f8d61c4ab49205b9774a08e1ee4ed0bc0df1a1de2382f403dd2525e3f0ec77e4"
 binary = "stockfish/stockfish-macos-m1-apple-silicon"
 extract = "tar"
 
@@ -154,8 +154,54 @@ Hash = 128
 Threads = 2
 MultiPV = 1
 
+# Stockfish 16.1 - kept alongside sf17 so a Mac user has two distinct engines
+# to play against each other out of the box.
+[engines.stockfish-161]
+name = "Stockfish 16.1"
+version = "16.1"
+author = "Stockfish Team"
+license = "GPL-3.0"
+homepage = "https://stockfishchess.org"
+description = "Stockfish 16.1, the previous major release, useful as a sparring partner."
+elo_estimate = 3500
+requires_network = false
+
+[engines.stockfish-161.builds.darwin-arm64]
+url = "https://github.com/official-stockfish/Stockfish/releases/download/sf_16.1/stockfish-macos-m1-apple-silicon.tar"
+sha256 = "386a05c06cb837d793c04e5f36e94b39586f5abc291fffe53ac74b16455a2308"
+binary = "stockfish/stockfish-macos-m1-apple-silicon"
+extract = "tar"
+
+[engines.stockfish-161.options.Hash]
+type = "spin"
+default = 16
+min = 1
+max = 33554432
+description = "Hash table size in MB"
+recommended = 256
+
+[engines.stockfish-161.options.Threads]
+type = "spin"
+default = 1
+min = 1
+max = 1024
+description = "Number of CPU threads to use"
+recommended = "auto"
+
+[engines.stockfish-161.options.MultiPV]
+type = "spin"
+default = 1
+min = 1
+max = 500
+description = "Number of principal variations to show"
+
+[engines.stockfish-161.profiles.tournament]
+Hash = 256
+Threads = "auto"
+MultiPV = 1
+
 # Leela Chess Zero v0.32.1 - Neural network based chess engine
-[engines.lc0-0.32]
+[engines.lc0-032]
 name = "Leela Chess Zero"
 version = "0.32.1"
 author = "LeelaChessZero Contributors"
@@ -166,46 +212,46 @@ elo_estimate = 3550
 requires_network = true
 
 # Windows CPU builds (for users without NVIDIA GPU)
-[engines.lc0-0.32.builds.windows-amd64-cpu-dnnl]
+[engines.lc0-032.builds.windows-amd64-cpu-dnnl]
 url = "https://github.com/LeelaChessZero/lc0/releases/download/v0.32.1/lc0-v0.32.1-windows-cpu-dnnl.zip"
 sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
 binary = "lc0.exe"
 extract = "zip"
 
-[engines.lc0-0.32.builds.windows-amd64-cpu-openblas]
+[engines.lc0-032.builds.windows-amd64-cpu-openblas]
 url = "https://github.com/LeelaChessZero/lc0/releases/download/v0.32.1/lc0-v0.32.1-windows-cpu-openblas.zip"
 sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
 binary = "lc0.exe"
 extract = "zip"
 
 # Windows GPU builds (NVIDIA CUDA)
-[engines.lc0-0.32.builds.windows-amd64-cuda12]
+[engines.lc0-032.builds.windows-amd64-cuda12]
 url = "https://github.com/LeelaChessZero/lc0/releases/download/v0.32.1/lc0-v0.32.1-windows-gpu-nvidia-cuda12.zip"
 sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
 binary = "lc0.exe"
 extract = "zip"
 
-[engines.lc0-0.32.builds.windows-amd64-cuda11]
+[engines.lc0-032.builds.windows-amd64-cuda11]
 url = "https://github.com/LeelaChessZero/lc0/releases/download/v0.32.1/lc0-v0.32.1-windows-gpu-nvidia-cuda11.zip"
 sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
 binary = "lc0.exe"
 extract = "zip"
 
-[engines.lc0-0.32.builds.windows-amd64-cudnn]
+[engines.lc0-032.builds.windows-amd64-cudnn]
 url = "https://github.com/LeelaChessZero/lc0/releases/download/v0.32.1/lc0-v0.32.1-windows-gpu-nvidia-cudnn.zip"
 sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
 binary = "lc0.exe"
 extract = "zip"
 
 # Windows ONNX DirectML (supports AMD/Intel GPUs)
-[engines.lc0-0.32.builds.windows-amd64-onnx-dml]
+[engines.lc0-032.builds.windows-amd64-onnx-dml]
 url = "https://github.com/LeelaChessZero/lc0/releases/download/v0.32.1/lc0-v0.32.1-windows-onnx-dml.zip"
 sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
 binary = "lc0.exe"
 extract = "zip"
 
 # Neural network files
-[engines.lc0-0.32.networks.bt4-1024x15]
+[engines.lc0-032.networks.bt4-1024x15]
 url = "https://storage.lczero.org/files/networks-contrib/BT4-1024x15x32h-swa-6147500-policytune-332.pb.gz"
 sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
 size = "365 MB"
@@ -213,14 +259,14 @@ description = "BT4-it332 - Competition network used in TCEC/CCC"
 gpu_memory = "4 GB"
 default = true
 
-[engines.lc0-0.32.networks.bt3-768x15]
+[engines.lc0-032.networks.bt3-768x15]
 url = "https://storage.lczero.org/files/networks-contrib/BT3-768x15x24h-swa-2790000.pb.gz"
 sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
 size = "190 MB"
 description = "BT3 - Good balance of strength and speed"
 gpu_memory = "2.6 GB"
 
-[engines.lc0-0.32.networks.t1-512x15-distilled]
+[engines.lc0-032.networks.t1-512x15-distilled]
 url = "https://storage.lczero.org/files/networks-contrib/t1-512x15x8h-distilled-swa-3395000.pb.gz"
 sha256 = "PLACEHOLDER_NEEDS_VERIFICATION"
 size = "140 MB"
@@ -228,31 +274,31 @@ description = "T1 Distilled - Smaller network for weaker hardware"
 gpu_memory = "1.8 GB"
 
 # UCI Options
-[engines.lc0-0.32.options.WeightsFile]
+[engines.lc0-032.options.WeightsFile]
 type = "string"
 default = ""
 description = "Path to neural network weights file"
 
-[engines.lc0-0.32.options.Backend]
+[engines.lc0-032.options.Backend]
 type = "combo"
 default = "cuda-auto"
 description = "Compute backend to use"
 
-[engines.lc0-0.32.options.Threads]
+[engines.lc0-032.options.Threads]
 type = "spin"
 default = 2
 min = 1
 max = 128
 description = "Number of CPU threads for search"
 
-[engines.lc0-0.32.options.MinibatchSize]
+[engines.lc0-032.options.MinibatchSize]
 type = "spin"
 default = 256
 min = 1
 max = 1024
 description = "Batch size for neural network evaluation"
 
-[engines.lc0-0.32.options.MultiPV]
+[engines.lc0-032.options.MultiPV]
 type = "spin"
 default = 1
 min = 1
@@ -260,12 +306,12 @@ max = 500
 description = "Number of principal variations to show"
 
 # Profiles
-[engines.lc0-0.32.profiles.analysis]
+[engines.lc0-032.profiles.analysis]
 Threads = 2
 MinibatchSize = 256
 MultiPV = 3
 
-[engines.lc0-0.32.profiles.tournament]
+[engines.lc0-032.profiles.tournament]
 Threads = 2
 MinibatchSize = 256
 MultiPV = 1
