@@ -123,6 +123,50 @@
   let overlaySize = $derived(size * 8);
   let arrowStroke = $derived(Math.max(3, size * 0.12));
   let arrowHead = $derived(arrowStroke * 2.6);
+
+  type SlideOffset = { dx: number; dy: number } | null;
+
+  /** Returns the (src - dest) pixel offset for the destination square of
+   * lastMove, or null otherwise. Pieces on other squares get null and are
+   * not animated. Recomputes when flipped so the offset matches render. */
+  function moveOffset(sq: string): SlideOffset {
+    if (!lastMove || lastMove.length < 4) return null;
+    const dest = lastMove.slice(2, 4);
+    if (sq !== dest) return null;
+    const src = lastMove.slice(0, 2);
+    const a = squareCenter(src);
+    const b = squareCenter(dest);
+    if (!a || !b) return null;
+    return { dx: a.x - b.x, dy: a.y - b.y };
+  }
+
+  /** Animates a piece span sliding from `offset` to (0,0) over 150ms.
+   * Plays on mount when offset is set (a piece arriving at the move's
+   * destination) and on update when the offset changes (e.g. captures
+   * where the same square gets a new piece). */
+  function slideIn(node: HTMLElement, offset: SlideOffset) {
+    let current: SlideOffset = offset;
+    const play = (off: SlideOffset) => {
+      if (!off) return;
+      node.animate(
+        [
+          { transform: `translate(${off.dx}px, ${off.dy}px)` },
+          { transform: 'translate(0, 0)' },
+        ],
+        { duration: 150, easing: 'ease-out' },
+      );
+    };
+    play(current);
+    return {
+      update(newOffset: SlideOffset) {
+        const changed =
+          newOffset &&
+          (!current || current.dx !== newOffset.dx || current.dy !== newOffset.dy);
+        if (changed) play(newOffset);
+        current = newOffset;
+      },
+    };
+  }
 </script>
 
 {#if parseError}
@@ -141,6 +185,7 @@
           {@const light = isLight(f, r)}
           {@const isHighlighted = highlights.has(sq)}
           {@const isCheck = checkSquare === sq}
+          {@const offset = moveOffset(sq)}
           <button
             type="button"
             class="square"
@@ -153,7 +198,10 @@
             disabled={!onSquareClick}
             onclick={() => onSquareClick?.(sq)}>
             {#if piece}
-              <span class="piece" class:white={piece === piece.toUpperCase()}>
+              <span
+                class="piece"
+                class:white={piece === piece.toUpperCase()}
+                use:slideIn={offset}>
                 {pieceGlyph(piece)}
               </span>
             {/if}

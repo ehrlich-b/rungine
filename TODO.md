@@ -207,7 +207,7 @@ Wraps `github.com/notnil/chess` with a UCI-oriented API for the arbiter.
 - [x] Check highlight (red radial overlay on king square when in check)
 - [ ] Arrow + circle annotations (for engine PVs)
 - [ ] Flip board
-- [ ] Animated piece transitions during replay
+- [x] Animated piece transitions during replay (150ms slide via Web Animations API on the move's destination)
 
 ### Move list / PGN navigation
 
