@@ -8,8 +8,16 @@
 
   type Format = 'match' | 'round-robin' | 'gauntlet';
 
+  type Slot = {
+    slotId: string;
+    engineId: string;
+    name: string;
+    optionsText: string; // raw "Key=Value" lines, parsed at submit
+    showOptions: boolean;
+  };
+
   let installed = $state<registry.InstalledEngine[]>([]);
-  let selected = $state<string[]>([]);
+  let slots = $state<Slot[]>([]);
   let format = $state<Format>('match');
   let games = $state(4);
   let movetimeMs = $state(200);
@@ -54,27 +62,67 @@
     }
   }
 
-  function toggleEngine(id: string) {
-    if (selected.includes(id)) {
-      selected = selected.filter((x) => x !== id);
-    } else {
-      selected = [...selected, id];
+  function defaultSlotName(engineId: string): string {
+    const eng = installed.find((e) => e.ID === engineId);
+    const base = eng?.Name ?? engineId;
+    const sameEngine = slots.filter((s) => s.engineId === engineId).length;
+    return sameEngine === 0 ? base : `${base} #${sameEngine + 1}`;
+  }
+
+  function addSlot(engineId: string) {
+    const slot: Slot = {
+      slotId: `s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      engineId,
+      name: defaultSlotName(engineId),
+      optionsText: '',
+      showOptions: false,
+    };
+    slots = [...slots, slot];
+  }
+
+  function removeSlot(slotId: string) {
+    slots = slots.filter((s) => s.slotId !== slotId);
+  }
+
+  function patchSlot(slotId: string, patch: Partial<Slot>) {
+    slots = slots.map((s) => (s.slotId === slotId ? { ...s, ...patch } : s));
+  }
+
+  function parseOptions(text: string): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const raw of text.split('\n')) {
+      const line = raw.trim();
+      if (!line || line.startsWith('#')) continue;
+      const eq = line.indexOf('=');
+      if (eq <= 0) continue;
+      const k = line.slice(0, eq).trim();
+      const v = line.slice(eq + 1).trim();
+      if (k) out[k] = v;
     }
+    return out;
   }
 
   function canStart(): boolean {
     if (starting) return false;
-    if (format === 'match' && selected.length !== 2) return false;
-    return selected.length >= 2 && games >= 1 && movetimeMs >= 50;
+    if (format === 'match' && slots.length !== 2) return false;
+    return slots.length >= 2 && games >= 1 && movetimeMs >= 50;
   }
 
   async function start() {
     error = null;
     starting = true;
     try {
+      const engines = slots.map((s) => {
+        const opts = parseOptions(s.optionsText);
+        return {
+          id: s.engineId,
+          name: s.name,
+          options: Object.keys(opts).length > 0 ? opts : undefined,
+        };
+      });
       const id = await App.StartTournament({
         format,
-        engines: selected.map((eid) => ({ id: eid })),
+        engines,
         games,
         concurrency,
         timeControlMs: movetimeMs,
@@ -176,10 +224,13 @@
     <div class="error">{error}</div>
   {/if}
 
-  {#if installed.length < 2}
+  {#if installed.length < 1}
     <div class="empty">
-      <h2>Need at least two engines</h2>
-      <p class="subtle">Install engines first, then come back to start a tournament.</p>
+      <h2>Install an engine to begin</h2>
+      <p class="subtle">
+        You can play one engine against itself with different option configs, or
+        install a second engine for engine-vs-engine matches.
+      </p>
       <button class="primary" onclick={() => navigate('engines')}>Go to Engines</button>
     </div>
   {:else}
@@ -193,22 +244,76 @@
         <h2>New tournament</h2>
 
         <div class="field">
-          <span class="label">Engines ({selected.length})</span>
+          <span class="label">Available engines</span>
           <div class="engines">
             {#each installed as eng (eng.ID)}
-              {@const checked = selected.includes(eng.ID)}
-              <label class="check" class:on={checked}>
-                <input
-                  type="checkbox"
-                  {checked}
-                  onchange={() => toggleEngine(eng.ID)} />
+              <button
+                type="button"
+                class="add-engine"
+                onclick={() => addSlot(eng.ID)}>
+                <span class="plus">+</span>
                 <span>{eng.Name}</span>
                 <span class="muted">{eng.Version}</span>
-              </label>
+              </button>
             {/each}
           </div>
-          {#if format === 'match' && selected.length !== 2}
-            <span class="hint">Match needs exactly two engines</span>
+          <span class="hint subtle">
+            Click + to add an engine slot. Add the same engine twice with different
+            options to play it against itself.
+          </span>
+        </div>
+
+        <div class="field">
+          <span class="label">Tournament slots ({slots.length})</span>
+          {#if slots.length === 0}
+            <p class="subtle small">No engines selected yet.</p>
+          {:else}
+            <div class="slots">
+              {#each slots as slot, i (slot.slotId)}
+                <div class="slot">
+                  <div class="slot-row">
+                    <span class="slot-num muted">{i + 1}</span>
+                    <input
+                      class="slot-name"
+                      value={slot.name}
+                      oninput={(e) =>
+                        patchSlot(slot.slotId, {
+                          name: (e.currentTarget as HTMLInputElement).value,
+                        })}
+                      placeholder="Display name"
+                      spellcheck="false" />
+                    <button
+                      type="button"
+                      class="slot-toggle"
+                      class:active={slot.showOptions}
+                      onclick={() =>
+                        patchSlot(slot.slotId, { showOptions: !slot.showOptions })}>
+                      {slot.showOptions ? 'Hide options' : 'Options'}
+                    </button>
+                    <button
+                      type="button"
+                      class="slot-remove"
+                      onclick={() => removeSlot(slot.slotId)}
+                      title="Remove">×</button>
+                  </div>
+                  {#if slot.showOptions}
+                    <textarea
+                      class="slot-options"
+                      placeholder="One UCI option per line, e.g.&#10;Hash=256&#10;Threads=4&#10;Skill Level=10"
+                      value={slot.optionsText}
+                      oninput={(e) =>
+                        patchSlot(slot.slotId, {
+                          optionsText: (e.currentTarget as HTMLTextAreaElement).value,
+                        })}
+                      rows="4"
+                      spellcheck="false"></textarea>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          {/if}
+          {#if format === 'match' && slots.length !== 2}
+            <span class="hint">Match needs exactly two slots</span>
           {/if}
         </div>
 
@@ -539,6 +644,111 @@
   .check.on {
     background: rgba(74, 222, 128, 0.08);
     border-color: rgba(74, 222, 128, 0.3);
+  }
+
+  .add-engine {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    text-align: left;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+
+  .add-engine:hover {
+    background: var(--surface-2);
+    border-color: var(--accent);
+  }
+
+  .plus {
+    color: var(--accent);
+    font-weight: 700;
+    width: 14px;
+    text-align: center;
+  }
+
+  .slots {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .slot {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-xs);
+  }
+
+  .slot-row {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .slot-num {
+    width: 16px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.8rem;
+  }
+
+  .slot-name {
+    flex: 1;
+    background: var(--surface-1);
+    font-size: 0.85rem;
+    padding: 4px 8px;
+  }
+
+  .slot-toggle {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 3px 8px;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  .slot-toggle.active {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .slot-remove {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    width: 24px;
+    padding: 0;
+    color: var(--text-muted);
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  .slot-remove:hover {
+    color: var(--danger);
+    border-color: var(--danger);
+  }
+
+  .slot-options {
+    margin-top: 4px;
+    width: 100%;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 6px 8px;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 0.8rem;
+    resize: vertical;
+  }
+
+  .small {
+    font-size: 0.75rem;
   }
 
   .seg {

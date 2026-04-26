@@ -5,23 +5,42 @@ const twoEngines = [
   makeInstalled({ ID: 'sf-b', Name: 'SF-B' }),
 ];
 
-test('shows empty state with link to engines page when fewer than two engines', async ({ page }) => {
+test('shows empty state with link to engines page when no engines installed', async ({ page }) => {
+  await setupMock(page, { installed: [] });
+  await page.goto('/');
+
+  await expect(page.getByText('Install an engine to begin')).toBeVisible();
+  await page.getByRole('button', { name: 'Go to Engines' }).click();
+  await expect(page).toHaveURL(/#\/engines$/);
+});
+
+test('one installed engine can play itself by adding two slots', async ({ page }) => {
   await setupMock(page, {
     installed: [makeInstalled({ ID: 'sf-a', Name: 'SF-A' })],
   });
   await page.goto('/');
 
-  await expect(page.getByText('Need at least two engines')).toBeVisible();
-  await page.getByRole('button', { name: 'Go to Engines' }).click();
-  await expect(page).toHaveURL(/#\/engines$/);
+  await page.getByRole('button', { name: /\+\s*SF-A/ }).click();
+  await page.getByRole('button', { name: /\+\s*SF-A/ }).click();
+
+  await expect(page.getByText('Tournament slots (2)')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Start tournament' }).click();
+  const calls = await page.evaluate(() => window.__rungineMock.state.startTournamentCalls);
+  expect(calls).toHaveLength(1);
+  expect(calls[0].engines).toHaveLength(2);
+  expect(calls[0].engines[0].id).toBe('sf-a');
+  expect(calls[0].engines[1].id).toBe('sf-a');
+  expect(calls[0].engines[0].name).toBe('SF-A');
+  expect(calls[0].engines[1].name).toBe('SF-A #2');
 });
 
 test('setup form submits a tournament spec to the backend', async ({ page }) => {
   await setupMock(page, { installed: twoEngines });
   await page.goto('/');
 
-  await page.getByRole('checkbox', { name: /SF-A/ }).check();
-  await page.getByRole('checkbox', { name: /SF-B/ }).check();
+  await page.getByRole('button', { name: /\+\s*SF-A/ }).click();
+  await page.getByRole('button', { name: /\+\s*SF-B/ }).click();
 
   await page.getByLabel('Games').fill('6');
   await page.getByLabel('Movetime (ms)').fill('150');
@@ -32,7 +51,10 @@ test('setup form submits a tournament spec to the backend', async ({ page }) => 
   const calls = await page.evaluate(() => window.__rungineMock.state.startTournamentCalls);
   expect(calls).toHaveLength(1);
   expect(calls[0].format).toBe('match');
-  expect(calls[0].engines).toEqual([{ id: 'sf-a' }, { id: 'sf-b' }]);
+  expect(calls[0].engines).toEqual([
+    { id: 'sf-a', name: 'SF-A', options: undefined },
+    { id: 'sf-b', name: 'SF-B', options: undefined },
+  ]);
   expect(calls[0].games).toBe(6);
   expect(calls[0].timeControlMs).toBe(150);
   expect(calls[0].concurrency).toBe(2);
@@ -44,11 +66,11 @@ test('changing format to gauntlet allows three engines', async ({ page }) => {
   });
   await page.goto('/');
 
-  await page.getByRole('checkbox', { name: /SF-A/ }).check();
-  await page.getByRole('checkbox', { name: /SF-B/ }).check();
-  await page.getByRole('checkbox', { name: /SF-C/ }).check();
+  await page.getByRole('button', { name: /\+\s*SF-A/ }).click();
+  await page.getByRole('button', { name: /\+\s*SF-B/ }).click();
+  await page.getByRole('button', { name: /\+\s*SF-C/ }).click();
 
-  // Match would reject 3 engines; switch to gauntlet.
+  // Match would reject 3 slots; switch to gauntlet.
   await page.getByRole('button', { name: 'gauntlet', exact: true }).click();
 
   await page.getByRole('button', { name: 'Start tournament' }).click();
@@ -62,20 +84,41 @@ test('match format requires exactly two engines', async ({ page }) => {
   });
   await page.goto('/');
 
-  await page.getByRole('checkbox', { name: /SF-A/ }).check();
-  await page.getByRole('checkbox', { name: /SF-B/ }).check();
-  await page.getByRole('checkbox', { name: /SF-C/ }).check();
+  await page.getByRole('button', { name: /\+\s*SF-A/ }).click();
+  await page.getByRole('button', { name: /\+\s*SF-B/ }).click();
+  await page.getByRole('button', { name: /\+\s*SF-C/ }).click();
 
-  await expect(page.getByText('Match needs exactly two engines')).toBeVisible();
+  await expect(page.getByText('Match needs exactly two slots')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Start tournament' })).toBeDisabled();
+});
+
+test('per-slot UCI option overrides are sent to the backend', async ({ page }) => {
+  await setupMock(page, {
+    installed: [makeInstalled({ ID: 'sf-a', Name: 'SF-A' })],
+  });
+  await page.goto('/');
+
+  await page.getByRole('button', { name: /\+\s*SF-A/ }).click();
+  await page.getByRole('button', { name: /\+\s*SF-A/ }).click();
+
+  // Open options on slot 2 and set Hash override.
+  const optionsButtons = page.getByRole('button', { name: 'Options', exact: true });
+  await optionsButtons.nth(1).click();
+  const optionsAreas = page.locator('.slot-options');
+  await optionsAreas.last().fill('Hash=512\nThreads=4');
+
+  await page.getByRole('button', { name: 'Start tournament' }).click();
+  const calls = await page.evaluate(() => window.__rungineMock.state.startTournamentCalls);
+  expect(calls[0].engines[0].options).toBeUndefined();
+  expect(calls[0].engines[1].options).toEqual({ Hash: '512', Threads: '4' });
 });
 
 test('starting a tournament shows a running dashboard with progress', async ({ page }) => {
   await setupMock(page, { installed: twoEngines });
   await page.goto('/');
 
-  await page.getByRole('checkbox', { name: /SF-A/ }).check();
-  await page.getByRole('checkbox', { name: /SF-B/ }).check();
+  await page.getByRole('button', { name: /\+\s*SF-A/ }).click();
+  await page.getByRole('button', { name: /\+\s*SF-B/ }).click();
   await page.getByLabel('Games').fill('4');
   await page.getByRole('button', { name: 'Start tournament' }).click();
 
@@ -88,8 +131,8 @@ test('live games grid populates from gameStart and move events', async ({ page }
   await setupMock(page, { installed: twoEngines });
   await page.goto('/');
 
-  await page.getByRole('checkbox', { name: /SF-A/ }).check();
-  await page.getByRole('checkbox', { name: /SF-B/ }).check();
+  await page.getByRole('button', { name: /\+\s*SF-A/ }).click();
+  await page.getByRole('button', { name: /\+\s*SF-B/ }).click();
   await page.getByRole('button', { name: 'Start tournament' }).click();
   await expect(page.getByText('Tournament t1')).toBeVisible();
 
@@ -132,8 +175,8 @@ test('stop button cancels the running tournament', async ({ page }) => {
   await setupMock(page, { installed: twoEngines });
   await page.goto('/');
 
-  await page.getByRole('checkbox', { name: /SF-A/ }).check();
-  await page.getByRole('checkbox', { name: /SF-B/ }).check();
+  await page.getByRole('button', { name: /\+\s*SF-A/ }).click();
+  await page.getByRole('button', { name: /\+\s*SF-B/ }).click();
   await page.getByRole('button', { name: 'Start tournament' }).click();
 
   await page.getByRole('button', { name: 'Stop tournament' }).click();
@@ -150,8 +193,8 @@ test('completed games appear in the standings table', async ({ page }) => {
   await setupMock(page, { installed: twoEngines });
   await page.goto('/');
 
-  await page.getByRole('checkbox', { name: /SF-A/ }).check();
-  await page.getByRole('checkbox', { name: /SF-B/ }).check();
+  await page.getByRole('button', { name: /\+\s*SF-A/ }).click();
+  await page.getByRole('button', { name: /\+\s*SF-B/ }).click();
   await page.getByRole('button', { name: 'Start tournament' }).click();
   await expect(page.getByText('Tournament t1')).toBeVisible();
 
