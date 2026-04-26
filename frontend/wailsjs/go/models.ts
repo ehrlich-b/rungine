@@ -1,5 +1,5 @@
 export namespace main {
-	
+
 	export class AnalysisParams {
 	    fen: string;
 	    moves: string[];
@@ -7,11 +7,11 @@ export namespace main {
 	    infinite: boolean;
 	    depth: number;
 	    moveTime: number;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new AnalysisParams(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.fen = source["fen"];
@@ -22,11 +22,143 @@ export namespace main {
 	        this.moveTime = source["moveTime"];
 	    }
 	}
+	export class TournamentEngineRef {
+	    id: string;
+	    name?: string;
+	    options?: Record<string, string>;
+
+	    static createFrom(source: any = {}) {
+	        return new TournamentEngineRef(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.options = source["options"];
+	    }
+	}
+	export class TournamentSpec {
+	    format: string;
+	    engines: TournamentEngineRef[];
+	    games: number;
+	    concurrency: number;
+	    timeControlMs: number;
+	    depthLimit: number;
+	    event: string;
+	    pairMode: boolean;
+	    maxPlies: number;
+	    resignScore: number;
+	    resignMoves: number;
+	    drawScore: number;
+	    drawMoves: number;
+	    drawMinPly: number;
+
+	    static createFrom(source: any = {}) {
+	        return new TournamentSpec(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.format = source["format"];
+	        this.engines = (source["engines"] ?? []).map((e: any) => new TournamentEngineRef(e));
+	        this.games = source["games"];
+	        this.concurrency = source["concurrency"];
+	        this.timeControlMs = source["timeControlMs"];
+	        this.depthLimit = source["depthLimit"];
+	        this.event = source["event"];
+	        this.pairMode = source["pairMode"];
+	        this.maxPlies = source["maxPlies"];
+	        this.resignScore = source["resignScore"];
+	        this.resignMoves = source["resignMoves"];
+	        this.drawScore = source["drawScore"];
+	        this.drawMoves = source["drawMoves"];
+	        this.drawMinPly = source["drawMinPly"];
+	    }
+	}
+	export class GameRow {
+	    gameNumber: number;
+	    round: string;
+	    white: string;
+	    black: string;
+	    outcome: string;
+	    reason: string;
+	    plies: number;
+	    error?: string;
+
+	    static createFrom(source: any = {}) {
+	        return new GameRow(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.gameNumber = source["gameNumber"];
+	        this.round = source["round"];
+	        this.white = source["white"];
+	        this.black = source["black"];
+	        this.outcome = source["outcome"];
+	        this.reason = source["reason"];
+	        this.plies = source["plies"];
+	        this.error = source["error"];
+	    }
+	}
+	export class PlayerScoreRow {
+	    name: string;
+	    wins: number;
+	    draws: number;
+	    losses: number;
+	    games: number;
+	    points: number;
+
+	    static createFrom(source: any = {}) {
+	        return new PlayerScoreRow(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.wins = source["wins"];
+	        this.draws = source["draws"];
+	        this.losses = source["losses"];
+	        this.games = source["games"];
+	        this.points = source["points"];
+	    }
+	}
+	export class TournamentSummary {
+	    id: string;
+	    spec: TournamentSpec;
+	    status: string;
+	    error?: string;
+	    startedAt: string;
+	    finishedAt?: string;
+	    gamesTotal: number;
+	    gamesPlayed: number;
+	    outcomes: GameRow[];
+	    standings: PlayerScoreRow[];
+
+	    static createFrom(source: any = {}) {
+	        return new TournamentSummary(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.spec = source["spec"] ? new TournamentSpec(source["spec"]) : (undefined as any);
+	        this.status = source["status"];
+	        this.error = source["error"];
+	        this.startedAt = source["startedAt"];
+	        this.finishedAt = source["finishedAt"];
+	        this.gamesTotal = source["gamesTotal"];
+	        this.gamesPlayed = source["gamesPlayed"];
+	        this.outcomes = (source["outcomes"] ?? []).map((g: any) => new GameRow(g));
+	        this.standings = (source["standings"] ?? []).map((s: any) => new PlayerScoreRow(s));
+	    }
+	}
 
 }
 
 export namespace registry {
-	
+
 	export class EngineInfo {
 	    id: string;
 	    name: string;
@@ -36,11 +168,11 @@ export namespace registry {
 	    eloEstimate: number;
 	    requiresNetwork: boolean;
 	    hasBuild: boolean;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new EngineInfo(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -62,11 +194,11 @@ export namespace registry {
 	    InstalledAt: string;
 	    BuildKey: string;
 	    OptionValues: Record<string, string>;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new InstalledEngine(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.ID = source["ID"];
@@ -83,18 +215,18 @@ export namespace registry {
 }
 
 export namespace uci {
-	
+
 	export class EngineInfo {
 	    id: string;
 	    name: string;
 	    author: string;
 	    binaryPath: string;
 	    state: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new EngineInfo(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -106,4 +238,3 @@ export namespace uci {
 	}
 
 }
-

@@ -8,6 +8,8 @@ export function GetCPUFeatures():Promise<string>;
 
 export function GetEngineOptions(arg1:string):Promise<Record<string, uci.UCIOption>>;
 
+export function GetTournament(arg1:string):Promise<main.TournamentSummary>;
+
 export function InstallEngine(arg1:string):Promise<void>;
 
 export function ListAvailableEngines():Promise<Array<registry.EngineInfo>>;
@@ -15,6 +17,8 @@ export function ListAvailableEngines():Promise<Array<registry.EngineInfo>>;
 export function ListEngines():Promise<Array<uci.EngineInfo>>;
 
 export function ListInstalledEngines():Promise<Array<registry.InstalledEngine>>;
+
+export function ListTournaments():Promise<Array<main.TournamentSummary>>;
 
 export function RegisterEngine(arg1:string,arg2:string):Promise<void>;
 
@@ -26,9 +30,13 @@ export function StartAnalysis(arg1:main.AnalysisParams):Promise<void>;
 
 export function StartEngine(arg1:string):Promise<void>;
 
+export function StartTournament(arg1:main.TournamentSpec):Promise<string>;
+
 export function StopAnalysis(arg1:Array<string>):Promise<void>;
 
 export function StopEngine(arg1:string):Promise<void>;
+
+export function StopTournament(arg1:string):Promise<void>;
 
 export function UninstallEngine(arg1:string):Promise<void>;
 

@@ -226,17 +226,18 @@ The "world-class" half. TCEC-quality live broadcast.
 
 ### Tournament setup
 
-- [ ] Format picker (match, round robin, gauntlet, Swiss, SPRT)
-- [ ] Engine multi-select from installed
+- [x] Format picker (match, round-robin, gauntlet) — Swiss/SPRT still unsupported in GUI
+- [x] Engine multi-select from installed
 - [ ] Per-engine UCI option overrides at tournament level
-- [ ] Time control picker
+- [x] Time control picker — movetime ms only; T+I and depth/nodes still TODO
 - [ ] Opening source: random startpos / PGN file / Polyglot book / specific FEN
-- [ ] Concurrency setting
+- [x] Concurrency setting
 - [ ] Save tournament config presets
 
 ### Live tournament dashboard
 
-- [ ] Header: tournament name, format, progress (X/N games, ETA)
+- [x] Header: tournament name, status, progress (X/N games)
+- [x] Standings updating as games complete
 - [ ] Crosstable updates as games complete
 - [ ] Live games grid: see all in-progress games at once (mini-boards with move/eval)
 - [ ] Click into a game for full view

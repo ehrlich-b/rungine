@@ -10,6 +10,10 @@ export function GetEngineOptions(arg1) {
   return window['go']['main']['App']['GetEngineOptions'](arg1);
 }
 
+export function GetTournament(arg1) {
+  return window['go']['main']['App']['GetTournament'](arg1);
+}
+
 export function InstallEngine(arg1) {
   return window['go']['main']['App']['InstallEngine'](arg1);
 }
@@ -24,6 +28,10 @@ export function ListEngines() {
 
 export function ListInstalledEngines() {
   return window['go']['main']['App']['ListInstalledEngines']();
+}
+
+export function ListTournaments() {
+  return window['go']['main']['App']['ListTournaments']();
 }
 
 export function RegisterEngine(arg1, arg2) {
@@ -46,12 +54,20 @@ export function StartEngine(arg1) {
   return window['go']['main']['App']['StartEngine'](arg1);
 }
 
+export function StartTournament(arg1) {
+  return window['go']['main']['App']['StartTournament'](arg1);
+}
+
 export function StopAnalysis(arg1) {
   return window['go']['main']['App']['StopAnalysis'](arg1);
 }
 
 export function StopEngine(arg1) {
   return window['go']['main']['App']['StopEngine'](arg1);
+}
+
+export function StopTournament(arg1) {
+  return window['go']['main']['App']['StopTournament'](arg1);
 }
 
 export function UninstallEngine(arg1) {

@@ -17,10 +17,11 @@ var embeddedRegistry []byte
 
 // App struct holds application state and provides Wails bindings.
 type App struct {
-	ctx       context.Context
-	engines   *uci.EngineManager
-	registry  *registry.Manager
-	installer *registry.Installer
+	ctx         context.Context
+	engines     *uci.EngineManager
+	registry    *registry.Manager
+	installer   *registry.Installer
+	tournaments *TournamentManager
 }
 
 // NewApp creates a new App application struct.
@@ -39,9 +40,10 @@ func NewApp() *App {
 	}
 
 	return &App{
-		engines:   uci.NewEngineManager(),
-		registry:  regMgr,
-		installer: installer,
+		engines:     uci.NewEngineManager(),
+		registry:    regMgr,
+		installer:   installer,
+		tournaments: newTournamentManager(installer),
 	}
 }
 
@@ -62,6 +64,10 @@ func (a *App) startup(ctx context.Context) {
 		a.installer.SetInstallProgressCallback(func(p registry.InstallProgress) {
 			runtime.EventsEmit(ctx, "install:progress", p)
 		})
+	}
+
+	if a.tournaments != nil {
+		a.tournaments.bindContext(ctx)
 	}
 
 	// Auto-register installed engines
@@ -215,4 +221,36 @@ func (a *App) UninstallEngine(engineID string) error {
 // GetCPUFeatures returns the detected CPU features.
 func (a *App) GetCPUFeatures() string {
 	return registry.DetectCPUFeatures().FeatureString()
+}
+
+// StartTournament kicks off a tournament asynchronously.
+func (a *App) StartTournament(spec TournamentSpec) (string, error) {
+	if a.tournaments == nil {
+		return "", nil
+	}
+	return a.tournaments.Start(spec)
+}
+
+// StopTournament cancels a running tournament.
+func (a *App) StopTournament(id string) error {
+	if a.tournaments == nil {
+		return nil
+	}
+	return a.tournaments.Stop(id)
+}
+
+// GetTournament returns a snapshot of one tournament.
+func (a *App) GetTournament(id string) (TournamentSummary, error) {
+	if a.tournaments == nil {
+		return TournamentSummary{}, nil
+	}
+	return a.tournaments.Get(id)
+}
+
+// ListTournaments returns snapshots of all tournaments.
+func (a *App) ListTournaments() []TournamentSummary {
+	if a.tournaments == nil {
+		return nil
+	}
+	return a.tournaments.List()
 }

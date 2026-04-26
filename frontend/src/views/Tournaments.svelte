@@ -1,69 +1,315 @@
 <script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
+  import { App, on } from '../lib/wails';
   import { navigate } from '../lib/router';
-  import Board from '../components/Board.svelte';
-  import { STARTING_FEN } from '../lib/chess';
+  import type { registry, main } from '../../wailsjs/go/models';
 
-  let fen = $state(STARTING_FEN);
-  let flipped = $state(false);
-  let lastMove = $state<string | null>(null);
+  type Format = 'match' | 'round-robin' | 'gauntlet';
 
-  function reset() {
-    fen = STARTING_FEN;
-    lastMove = null;
+  let installed = $state<registry.InstalledEngine[]>([]);
+  let selected = $state<string[]>([]);
+  let format = $state<Format>('match');
+  let games = $state(4);
+  let movetimeMs = $state(200);
+  let concurrency = $state(1);
+  let pairMode = $state(true);
+
+  let starting = $state(false);
+  let error = $state<string | null>(null);
+  let activeTournamentId = $state<string | null>(null);
+  let summary = $state<main.TournamentSummary | null>(null);
+  let tournaments = $state<main.TournamentSummary[]>([]);
+
+  let unsubs: Array<() => void> = [];
+
+  async function refresh() {
+    try {
+      installed = (await App.ListInstalledEngines()) ?? [];
+      tournaments = (await App.ListTournaments()) ?? [];
+      if (activeTournamentId) {
+        summary = await App.GetTournament(activeTournamentId);
+      }
+    } catch (e) {
+      error = `Refresh failed: ${e}`;
+    }
   }
+
+  function toggleEngine(id: string) {
+    if (selected.includes(id)) {
+      selected = selected.filter((x) => x !== id);
+    } else {
+      selected = [...selected, id];
+    }
+  }
+
+  function canStart(): boolean {
+    if (starting) return false;
+    if (format === 'match' && selected.length !== 2) return false;
+    return selected.length >= 2 && games >= 1 && movetimeMs >= 50;
+  }
+
+  async function start() {
+    error = null;
+    starting = true;
+    try {
+      const id = await App.StartTournament({
+        format,
+        engines: selected.map((eid) => ({ id: eid })),
+        games,
+        concurrency,
+        timeControlMs: movetimeMs,
+        depthLimit: 0,
+        event: 'Rungine GUI',
+        pairMode,
+        maxPlies: 400,
+        resignScore: 0,
+        resignMoves: 4,
+        drawScore: -1,
+        drawMoves: 8,
+        drawMinPly: 60,
+      } as any);
+      activeTournamentId = id;
+      summary = await App.GetTournament(id);
+      tournaments = (await App.ListTournaments()) ?? [];
+    } catch (e) {
+      error = `Start failed: ${e}`;
+    } finally {
+      starting = false;
+    }
+  }
+
+  async function stop() {
+    if (!activeTournamentId) return;
+    try {
+      await App.StopTournament(activeTournamentId);
+    } catch (e) {
+      error = `Stop failed: ${e}`;
+    }
+  }
+
+  function formatOutcome(o: string): string {
+    if (o === '1-0') return 'White wins';
+    if (o === '0-1') return 'Black wins';
+    if (o === '1/2-1/2') return 'Draw';
+    return o || '—';
+  }
+
+  function outcomeClass(o: string): string {
+    if (o === '1-0') return 'win';
+    if (o === '0-1') return 'loss';
+    if (o === '1/2-1/2') return 'draw';
+    return '';
+  }
+
+  onMount(() => {
+    refresh();
+
+    unsubs.push(
+      on<{ tournamentId: string }>('tournament:gameComplete', async (p) => {
+        if (p && (p.tournamentId === activeTournamentId || activeTournamentId === null)) {
+          if (activeTournamentId) {
+            summary = await App.GetTournament(activeTournamentId);
+          }
+        }
+      }),
+      on<{ tournamentId: string; status: string }>('tournament:done', async (p) => {
+        if (p && p.tournamentId === activeTournamentId) {
+          summary = await App.GetTournament(activeTournamentId);
+        }
+        tournaments = (await App.ListTournaments()) ?? [];
+      }),
+    );
+  });
+
+  onDestroy(() => {
+    unsubs.forEach((u) => u());
+  });
 </script>
 
 <section class="page">
   <header>
     <h1>Tournaments</h1>
-    <button class="primary" disabled title="Tournament setup wizard coming next">
-      New tournament
-    </button>
+    {#if summary && summary.status === 'running'}
+      <button class="danger" onclick={stop}>Stop tournament</button>
+    {/if}
   </header>
 
-  <div class="empty">
-    <h2>No tournaments yet</h2>
-    <p class="subtle">
-      The tournament backend (match, round-robin, gauntlet, Swiss, SPRT) is wired up
-      and runs from the CLI today: <code>rungine-tournament</code>. The in-app setup
-      wizard is the next slice.
-    </p>
-    <p class="subtle">
-      Install some engines first so they show up in the tournament picker.
-    </p>
-    <button onclick={() => navigate('engines')}>Go to Engines</button>
-  </div>
+  {#if error}
+    <div class="error">{error}</div>
+  {/if}
 
-  <div class="preview">
-    <h2>Board preview</h2>
-    <p class="subtle">
-      Chessboard component preview — paste a FEN to test rendering. Used by the
-      tournament viewer when games start streaming in.
-    </p>
-    <div class="preview-body">
-      <Board {fen} {flipped} {lastMove} size={48} />
-      <div class="preview-controls">
-        <label>
-          <span class="label">FEN</span>
-          <input bind:value={fen} spellcheck="false" />
-        </label>
-        <label>
-          <span class="label">Last move (UCI)</span>
-          <input
-            placeholder="e2e4"
-            value={lastMove ?? ''}
-            oninput={(e) => (lastMove = (e.currentTarget as HTMLInputElement).value || null)}
-            spellcheck="false" />
-        </label>
-        <div class="row">
-          <button onclick={() => (flipped = !flipped)}>
-            {flipped ? 'Unflip' : 'Flip'}
-          </button>
-          <button onclick={reset}>Reset</button>
+  {#if installed.length < 2}
+    <div class="empty">
+      <h2>Need at least two engines</h2>
+      <p class="subtle">Install engines first, then come back to start a tournament.</p>
+      <button class="primary" onclick={() => navigate('engines')}>Go to Engines</button>
+    </div>
+  {:else}
+    <div class="layout">
+      <form
+        class="setup"
+        onsubmit={(e) => {
+          e.preventDefault();
+          if (canStart()) start();
+        }}>
+        <h2>New tournament</h2>
+
+        <div class="field">
+          <span class="label">Engines ({selected.length})</span>
+          <div class="engines">
+            {#each installed as eng (eng.ID)}
+              {@const checked = selected.includes(eng.ID)}
+              <label class="check" class:on={checked}>
+                <input
+                  type="checkbox"
+                  {checked}
+                  onchange={() => toggleEngine(eng.ID)} />
+                <span>{eng.Name}</span>
+                <span class="muted">{eng.Version}</span>
+              </label>
+            {/each}
+          </div>
+          {#if format === 'match' && selected.length !== 2}
+            <span class="hint">Match needs exactly two engines</span>
+          {/if}
         </div>
+
+        <div class="field">
+          <span class="label">Format</span>
+          <div class="seg">
+            {#each ['match', 'round-robin', 'gauntlet'] as f (f)}
+              <button
+                type="button"
+                class:active={format === f}
+                onclick={() => (format = f as Format)}>
+                {f}
+              </button>
+            {/each}
+          </div>
+        </div>
+
+        <div class="grid">
+          <label>
+            <span class="label">Games</span>
+            <input type="number" min="1" max="1000" bind:value={games} />
+          </label>
+          <label>
+            <span class="label">Movetime (ms)</span>
+            <input type="number" min="50" max="60000" step="50" bind:value={movetimeMs} />
+          </label>
+          <label>
+            <span class="label">Concurrency</span>
+            <input type="number" min="1" max="32" bind:value={concurrency} />
+          </label>
+          <label class="check inline">
+            <input type="checkbox" bind:checked={pairMode} />
+            <span>Pair mode (mirror colors)</span>
+          </label>
+        </div>
+
+        <button type="submit" class="primary" disabled={!canStart()}>
+          {starting ? 'Starting…' : 'Start tournament'}
+        </button>
+      </form>
+
+      <div class="dashboard">
+        {#if summary}
+          <div class="card">
+            <div class="card-head">
+              <strong>Tournament {summary.id}</strong>
+              <span class="status status-{summary.status}">{summary.status}</span>
+            </div>
+            <div class="progress">
+              <div
+                class="bar"
+                style:width="{summary.gamesTotal > 0
+                  ? (summary.gamesPlayed / summary.gamesTotal) * 100
+                  : 0}%">
+              </div>
+              <span class="progress-text">
+                {summary.gamesPlayed} / {summary.gamesTotal} games
+              </span>
+            </div>
+
+            {#if summary.standings.length > 0}
+              <h3>Standings</h3>
+              <table class="standings">
+                <thead>
+                  <tr>
+                    <th>Engine</th>
+                    <th>G</th>
+                    <th>W</th>
+                    <th>D</th>
+                    <th>L</th>
+                    <th>Pts</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each summary.standings as p (p.name)}
+                    <tr>
+                      <td>{p.name}</td>
+                      <td>{p.games}</td>
+                      <td>{p.wins}</td>
+                      <td>{p.draws}</td>
+                      <td>{p.losses}</td>
+                      <td>{p.points.toFixed(1)}</td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            {/if}
+
+            {#if summary.outcomes.length > 0}
+              <h3>Games ({summary.outcomes.length})</h3>
+              <div class="games">
+                {#each summary.outcomes.slice().reverse() as g (g.gameNumber)}
+                  <div class="game" class:err={g.error}>
+                    <span class="g-num muted">#{g.gameNumber}</span>
+                    <span class="g-pair">
+                      {g.white} <span class="muted">vs</span> {g.black}
+                    </span>
+                    <span class="g-result {outcomeClass(g.outcome)}">
+                      {g.error ? `error: ${g.error}` : formatOutcome(g.outcome)}
+                    </span>
+                    {#if g.reason}
+                      <span class="muted small">({g.reason})</span>
+                    {/if}
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {:else}
+          <div class="hint-card">
+            Configure a tournament on the left and click Start. Live standings and
+            game results appear here.
+          </div>
+        {/if}
+
+        {#if tournaments.length > 1}
+          <h3 class="section">All tournaments</h3>
+          <div class="tlist">
+            {#each tournaments.slice().reverse() as t (t.id)}
+              <button
+                class="tlist-item"
+                class:active={t.id === activeTournamentId}
+                onclick={async () => {
+                  activeTournamentId = t.id;
+                  summary = await App.GetTournament(t.id);
+                }}>
+                <span class="tlist-id">{t.id}</span>
+                <span class="muted">{t.spec.format}</span>
+                <span class="status status-{t.status}">{t.status}</span>
+                <span class="muted small">
+                  {t.gamesPlayed}/{t.gamesTotal}
+                </span>
+              </button>
+            {/each}
+          </div>
+        {/if}
       </div>
     </div>
-  </div>
+  {/if}
 </section>
 
 <style>
@@ -79,13 +325,12 @@
     justify-content: space-between;
   }
 
-  h2 {
-    font-size: 0.85rem;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--text-secondary);
-    font-weight: 500;
-    margin-bottom: var(--space-sm);
+  .error {
+    background: rgba(248, 113, 113, 0.1);
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-sm);
   }
 
   .empty {
@@ -106,39 +351,57 @@
     font-size: 1.25rem;
     color: var(--text-primary);
     font-weight: 600;
+    margin: 0;
   }
 
-  code {
-    background: var(--surface-2);
-    padding: 1px 6px;
-    border-radius: var(--radius-sm);
-    font-size: 0.85em;
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(300px, 380px) 1fr;
+    gap: var(--space-lg);
+    align-items: flex-start;
   }
 
-  .preview {
+  @media (max-width: 900px) {
+    .layout {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .setup,
+  .card,
+  .hint-card {
     background: var(--surface-1);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     padding: var(--space-md) var(--space-lg);
-    max-width: 800px;
   }
 
-  .preview-body {
-    display: flex;
-    gap: var(--space-lg);
-    align-items: flex-start;
-    flex-wrap: wrap;
-  }
-
-  .preview-controls {
+  .setup {
     display: flex;
     flex-direction: column;
-    gap: var(--space-sm);
-    min-width: 280px;
-    flex: 1;
+    gap: var(--space-md);
   }
 
-  .preview-controls label {
+  h2 {
+    margin: 0;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  h3 {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+    font-weight: 500;
+    margin-top: var(--space-md);
+    margin-bottom: var(--space-sm);
+  }
+
+  .field {
     display: flex;
     flex-direction: column;
     gap: var(--space-xs);
@@ -151,14 +414,263 @@
     letter-spacing: 0.5px;
   }
 
-  .preview-controls input {
-    font-family: ui-monospace, SFMono-Regular, monospace;
+  .engines {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .check {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+
+  .check.inline {
+    align-self: flex-end;
+  }
+
+  .check:hover {
+    background: var(--surface-2);
+  }
+
+  .check.on {
+    background: rgba(74, 222, 128, 0.08);
+    border-color: rgba(74, 222, 128, 0.3);
+  }
+
+  .seg {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+
+  .seg button {
+    flex: 1;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    text-transform: capitalize;
+  }
+
+  .seg button.active {
+    background: var(--surface-2);
+    color: var(--text-primary);
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-sm);
+  }
+
+  .grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .hint {
+    font-size: 0.75rem;
+    color: var(--warning);
+  }
+
+  .hint-card {
+    color: var(--text-secondary);
+    text-align: center;
+    padding: var(--space-xl);
+  }
+
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+  }
+
+  .card-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    justify-content: space-between;
+  }
+
+  .status {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--text-secondary);
+  }
+
+  .status-running {
+    background: rgba(74, 222, 128, 0.15);
+    color: var(--accent);
+  }
+
+  .status-done {
+    background: var(--surface-2);
+    color: var(--text-secondary);
+  }
+
+  .status-stopped,
+  .status-error {
+    background: rgba(248, 113, 113, 0.15);
+    color: var(--danger);
+  }
+
+  .progress {
+    position: relative;
+    height: 8px;
+    background: var(--surface-2);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+
+  .progress .bar {
+    background: var(--accent);
+    height: 100%;
+    transition: width 200ms ease;
+  }
+
+  .progress-text {
+    position: absolute;
+    top: 12px;
+    right: 0;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  .standings {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+
+  .standings th,
+  .standings td {
+    padding: 4px 8px;
+    text-align: left;
+  }
+
+  .standings th {
+    color: var(--text-secondary);
+    font-weight: 500;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .standings td:nth-child(n + 2) {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .standings th:nth-child(n + 2) {
+    text-align: right;
+  }
+
+  .games {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  .game {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    gap: var(--space-sm);
+    align-items: center;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
     font-size: 0.8rem;
   }
 
-  .row {
+  .game:hover {
+    background: var(--surface-2);
+  }
+
+  .g-num {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .g-result.win {
+    color: var(--result-win);
+  }
+  .g-result.loss {
+    color: var(--result-loss);
+  }
+  .g-result.draw {
+    color: var(--result-draw);
+  }
+
+  .g-result {
+    font-weight: 500;
+  }
+
+  .game.err {
+    background: rgba(248, 113, 113, 0.06);
+  }
+
+  .small {
+    font-size: 0.7rem;
+  }
+
+  .section {
+    margin-top: var(--space-md);
+  }
+
+  .tlist {
     display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: var(--space-sm);
+  }
+
+  .tlist-item {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
     gap: var(--space-sm);
-    margin-top: var(--space-xs);
+    align-items: center;
+    text-align: left;
+    padding: 6px 10px;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+  }
+
+  .tlist-item:hover {
+    background: var(--surface-2);
+  }
+
+  .tlist-item.active {
+    border-color: var(--accent);
+  }
+
+  .tlist-id {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    color: var(--text-primary);
+  }
+
+  .dashboard {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    min-width: 0;
   }
 </style>
