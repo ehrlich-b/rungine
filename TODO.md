@@ -249,7 +249,7 @@ The "world-class" half. TCEC-quality live broadcast.
 - [x] Per-engine panel: name, depth, eval, nodes, NPS, PV — `tournament:engineInfo` event + `GameView` panel
 - [x] Eval graph (white POV, click-to-jump, arrow-key nav)
 - [x] Clock display (both sides, ticking) — `frontend/src/components/LiveGames.svelte`
-- [ ] PV-on-board overlay (arrows for engine's planned line)
+- [x] PV-on-board overlay (arrows for engine's planned line) — Board accepts `arrows` prop; GameView feeds side-to-move's PV[0] when viewing the live ply
 
 ### Replay finished games
 

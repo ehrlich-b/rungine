@@ -35,6 +35,7 @@
   // currentPly: 0 = starting position, 1..N = after Nth ply.
   let currentPly = $state(0);
   let flipped = $state(false);
+  let showArrows = $state(true);
 
   let totalPlies = $derived(detail.moves.length);
   let position = $derived(currentPly === 0 ? detail.startFen : detail.moves[currentPly - 1]?.fen ?? STARTING_FEN);
@@ -164,6 +165,26 @@
   }
 
   let movePairs = $derived(pairs());
+
+  type Arrow = { from: string; to: string; color?: string; weight?: number };
+
+  function pvToArrow(info: EngineInfo | null, color: string): Arrow | null {
+    if (!info || !info.pv || info.pv.length === 0) return null;
+    const move = info.pv[0];
+    if (!move || move.length < 4) return null;
+    return { from: move.slice(0, 2), to: move.slice(2, 4), color };
+  }
+
+  let boardArrows = $derived.by<Arrow[]>(() => {
+    if (!showArrows) return [];
+    // Only meaningful while the game is live: at the latest ply with no result yet.
+    if (currentPly !== totalPlies) return [];
+    if (detail.result && detail.result !== '*') return [];
+    const sideToMove = totalPlies % 2 === 0 ? 'w' : 'b';
+    const info = sideToMove === 'w' ? liveWhite : liveBlack;
+    const arrow = pvToArrow(info, 'var(--accent)');
+    return arrow ? [arrow] : [];
+  });
 </script>
 
 <div class="game-view">
@@ -185,6 +206,14 @@
       <button onclick={() => (flipped = !flipped)} title="Flip board (F)">
         {flipped ? 'Unflip' : 'Flip'}
       </button>
+      {#if tournamentId}
+        <button
+          onclick={() => (showArrows = !showArrows)}
+          class:active={showArrows}
+          title="Toggle PV arrow on board">
+          {showArrows ? 'Arrows on' : 'Arrows off'}
+        </button>
+      {/if}
       {#if detail.pgn}
         <button onclick={copyPGN}>Copy PGN</button>
       {/if}
@@ -193,7 +222,7 @@
 
   <div class="layout">
     <div class="board-area">
-      <Board fen={position} {flipped} {lastMove} size={56} />
+      <Board fen={position} {flipped} {lastMove} arrows={boardArrows} size={56} />
       <div class="nav">
         <button onclick={() => go(0)} title="Start (Home)">⏮</button>
         <button onclick={() => go(currentPly - 1)} title="Previous (←)">◀</button>

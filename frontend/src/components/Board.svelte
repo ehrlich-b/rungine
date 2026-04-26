@@ -7,6 +7,17 @@
     type Position,
   } from '../lib/chess';
 
+  type Arrow = {
+    /** Source square in UCI notation, e.g. "e2". */
+    from: string;
+    /** Destination square in UCI notation, e.g. "e4". */
+    to: string;
+    /** CSS color string. Defaults to the accent color. */
+    color?: string;
+    /** Multiplier on the default stroke width. */
+    weight?: number;
+  };
+
   type Props = {
     fen?: string;
     flipped?: boolean;
@@ -15,6 +26,8 @@
     lastMove?: string | null;
     /** Square size in pixels. */
     size?: number;
+    /** Arrow overlays (engine PV, user annotations). */
+    arrows?: Arrow[];
     onSquareClick?: (square: string) => void;
   };
 
@@ -24,6 +37,7 @@
     showCoords = true,
     lastMove = null,
     size = 56,
+    arrows = [],
     onSquareClick,
   }: Props = $props();
 
@@ -61,6 +75,51 @@
   function isLight(file: number, rank: number): boolean {
     return (file + rank) % 2 === 0;
   }
+
+  /** Returns the pixel center of square `sq` inside the 8*size grid, accounting for flip. */
+  function squareCenter(sq: string): { x: number; y: number } | null {
+    if (!sq || sq.length < 2) return null;
+    const f = sq.charCodeAt(0) - 97;
+    const rankNum = parseInt(sq[1], 10);
+    if (f < 0 || f > 7 || isNaN(rankNum) || rankNum < 1 || rankNum > 8) return null;
+    // board[r][f] where r=0 means rank 8 (FEN order).
+    const boardR = 8 - rankNum;
+    const renderRow = flipped ? 7 - boardR : boardR;
+    const renderCol = flipped ? 7 - f : f;
+    return {
+      x: renderCol * size + size / 2,
+      y: renderRow * size + size / 2,
+    };
+  }
+
+  type Geom = { x1: number; y1: number; x2: number; y2: number; color: string; weight: number };
+
+  function arrowGeometry(): Geom[] {
+    const out: Geom[] = [];
+    for (const a of arrows ?? []) {
+      const from = squareCenter(a.from);
+      const to = squareCenter(a.to);
+      if (!from || !to) continue;
+      // Shorten destination so the arrowhead lands inside the square, not on its edge.
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const shrink = size * 0.25;
+      const tx = to.x - (dx / dist) * shrink;
+      const ty = to.y - (dy / dist) * shrink;
+      out.push({
+        x1: from.x, y1: from.y, x2: tx, y2: ty,
+        color: a.color ?? 'var(--accent)',
+        weight: a.weight ?? 1,
+      });
+    }
+    return out;
+  }
+
+  let arrowGeom = $derived(arrowGeometry());
+  let overlaySize = $derived(size * 8);
+  let arrowStroke = $derived(Math.max(3, size * 0.12));
+  let arrowHead = $derived(arrowStroke * 2.6);
 </script>
 
 {#if parseError}
@@ -102,6 +161,42 @@
           </button>
         {/each}
       {/each}
+      {#if arrowGeom.length > 0}
+        <svg
+          class="arrows"
+          viewBox="0 0 {overlaySize} {overlaySize}"
+          width={overlaySize}
+          height={overlaySize}
+          aria-hidden="true">
+          {#each arrowGeom as g, i (i)}
+            {@const headLen = arrowHead * g.weight}
+            {@const dx = g.x2 - g.x1}
+            {@const dy = g.y2 - g.y1}
+            {@const dist = Math.hypot(dx, dy) || 1}
+            {@const ux = dx / dist}
+            {@const uy = dy / dist}
+            {@const lineEndX = g.x2 - ux * headLen * 0.6}
+            {@const lineEndY = g.y2 - uy * headLen * 0.6}
+            {@const headBaseX = g.x2 - ux * headLen}
+            {@const headBaseY = g.y2 - uy * headLen}
+            {@const perpX = -uy * headLen * 0.45}
+            {@const perpY = ux * headLen * 0.45}
+            <g style="color: {g.color}">
+              <line
+                x1={g.x1}
+                y1={g.y1}
+                x2={lineEndX}
+                y2={lineEndY}
+                stroke="currentColor"
+                stroke-width={arrowStroke * g.weight}
+                stroke-linecap="round" />
+              <polygon
+                points="{g.x2},{g.y2} {headBaseX + perpX},{headBaseY + perpY} {headBaseX - perpX},{headBaseY - perpY}"
+                fill="currentColor" />
+            </g>
+          {/each}
+        </svg>
+      {/if}
     </div>
   </div>
 {/if}
@@ -116,12 +211,22 @@
   }
 
   .grid {
+    position: relative;
     display: grid;
     grid-template-columns: repeat(8, var(--size));
     grid-template-rows: repeat(8, var(--size));
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-sm);
     overflow: hidden;
+  }
+
+  .arrows {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    opacity: 0.85;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
   }
 
   .square {
