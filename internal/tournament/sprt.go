@@ -3,6 +3,7 @@ package tournament
 import (
 	"fmt"
 	"math"
+	"sync"
 
 	"rungine/internal/chess"
 )
@@ -103,6 +104,67 @@ func (c SPRTConfig) Evaluate(wins, draws, losses int) SPRTResult {
 		res.Decision = SPRTContinue
 	}
 	return res
+}
+
+// NewSPRTStopper returns a Scheduler.ShouldStop function that runs SPRT
+// against the running W/D/L tally for candidateName as games complete.
+// Once the SPRT decision is anything other than Continue, it returns
+// true and further pairings are skipped. The optional onDecision
+// callback is invoked once with the terminating result (also from a
+// worker goroutine).
+func NewSPRTStopper(c SPRTConfig, candidateName string, onDecision func(SPRTResult)) func(GameOutcome) bool {
+	var (
+		mu       sync.Mutex
+		w, d, l  int
+		decided  bool
+	)
+	return func(o GameOutcome) bool {
+		if o.Err != nil || o.Result == nil {
+			return false
+		}
+		var candidateIsWhite bool
+		switch candidateName {
+		case o.Pairing.White.Name:
+			candidateIsWhite = true
+		case o.Pairing.Black.Name:
+			candidateIsWhite = false
+		default:
+			return false
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+		if decided {
+			return true
+		}
+		switch o.Result.Outcome {
+		case chess.WhiteWins:
+			if candidateIsWhite {
+				w++
+			} else {
+				l++
+			}
+		case chess.BlackWins:
+			if candidateIsWhite {
+				l++
+			} else {
+				w++
+			}
+		case chess.Drawn:
+			d++
+		default:
+			return false
+		}
+		res := c.Evaluate(w, d, l)
+		if res.Decision != SPRTContinue {
+			decided = true
+			if onDecision != nil {
+				onDecision(res)
+			}
+			return true
+		}
+		return false
+	}
 }
 
 // EvaluateOutcomes is a convenience wrapper that aggregates a slice of

@@ -283,6 +283,119 @@ func TestSchedulerCallbacksFire(t *testing.T) {
 	}
 }
 
+func TestSchedulerShouldStopHaltsDispatch(t *testing.T) {
+	// ShouldStop returns true after the first game; remaining pairings
+	// should be marked ErrSchedulerStopped without ever spawning engines.
+	var spawned atomic.Int32
+	factory := func(_ context.Context, spec EngineSpec) (*RunningEngine, error) {
+		spawned.Add(1)
+		var moves []string
+		switch spec.Name {
+		case "W":
+			moves = []string{"f2f3", "g2g4"}
+		case "B":
+			moves = []string{"e7e5", "d8h4"}
+		}
+		return &RunningEngine{Engine: newScripted(moves), Stop: func() error { return nil }}, nil
+	}
+
+	var completed atomic.Int32
+	sch, _ := NewScheduler(SchedulerConfig{
+		Factory:     factory,
+		Concurrency: 1,
+		TimeControl: TimeControl{FixedDepth: 1},
+		MaxPlies:    4,
+		ShouldStop: func(_ GameOutcome) bool {
+			return completed.Add(1) >= 2
+		},
+	})
+
+	pairings := make([]Pairing, 5)
+	for i := range pairings {
+		pairings[i] = Pairing{
+			GameNumber: i + 1,
+			White:      EngineSpec{Name: "W"},
+			Black:      EngineSpec{Name: "B"},
+		}
+	}
+
+	out := sch.Run(context.Background(), pairings)
+	if len(out) != 5 {
+		t.Fatalf("len(outcomes) = %d, want 5", len(out))
+	}
+
+	completedCount, stoppedCount := 0, 0
+	for _, o := range out {
+		switch {
+		case o.Err == nil:
+			completedCount++
+		case errors.Is(o.Err, ErrSchedulerStopped):
+			stoppedCount++
+		default:
+			t.Errorf("unexpected error %v on game %d", o.Err, o.Pairing.GameNumber)
+		}
+	}
+	if completedCount != 2 {
+		t.Errorf("completed = %d, want exactly 2 before stop", completedCount)
+	}
+	if stoppedCount != 3 {
+		t.Errorf("stopped = %d, want 3 (games 3-5 skipped)", stoppedCount)
+	}
+	if got := spawned.Load(); got > 4 {
+		t.Errorf("spawned = %d engine instances, want at most 4 (2 games)", got)
+	}
+}
+
+func TestSchedulerSPRTStopper(t *testing.T) {
+	// Cand wins every game (Fool's mate). SPRT should accept H1 within
+	// a few dozen games and most pairings should be skipped.
+	st := scriptedTable{
+		"Cand": func() *scripted { return newScripted([]string{"f2f3", "g2g4"}) },
+		"Base": func() *scripted { return newScripted([]string{"e7e5", "d8h4"}) },
+	}
+
+	var decided atomic.Bool
+	stopper := NewSPRTStopper(
+		SPRTConfig{Elo0: 0, Elo1: 20, Alpha: 0.05, Beta: 0.05},
+		"Cand",
+		func(SPRTResult) { decided.Store(true) },
+	)
+
+	sch, _ := NewScheduler(SchedulerConfig{
+		Factory:     st.factory,
+		Concurrency: 1, // serialize so the decision is deterministic
+		TimeControl: TimeControl{FixedDepth: 1},
+		MaxPlies:    4,
+		ShouldStop:  stopper,
+	})
+
+	pairings := make([]Pairing, 200)
+	for i := range pairings {
+		pairings[i] = Pairing{
+			GameNumber: i + 1,
+			White:      EngineSpec{Name: "Cand"},
+			Black:      EngineSpec{Name: "Base"},
+		}
+	}
+
+	out := sch.Run(context.Background(), pairings)
+	if len(out) != 200 {
+		t.Fatalf("len(outcomes) = %d, want 200", len(out))
+	}
+	if !decided.Load() {
+		t.Fatal("SPRT stopper never reached a decision")
+	}
+	stoppedCount := 0
+	for _, o := range out {
+		if errors.Is(o.Err, ErrSchedulerStopped) {
+			stoppedCount++
+		}
+	}
+	if stoppedCount < 100 {
+		t.Errorf("stopped = %d, want >100 (most games skipped early)", stoppedCount)
+	}
+}
+
 func TestSchedulerContextCancelled(t *testing.T) {
 	// Block in the factory until ctx fires so we can cancel during
 	// scheduling. Pairings that never reach the factory should surface

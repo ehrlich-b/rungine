@@ -183,7 +183,7 @@ Wraps `github.com/notnil/chess` with a UCI-oriented API for the arbiter.
 ### SPRT (engine development mode)
 
 - [x] SPRT calculator: LLR, lower/upper bounds from `elo0` / `elo1` / `alpha` / `beta` — `internal/tournament/sprt.go`
-- [x] SPRT termination (accept H0 / accept H1 / continue)
+- [x] SPRT termination (accept H0 / accept H1 / continue) — `Scheduler.ShouldStop` + `NewSPRTStopper`
 - [ ] Live LLR display during match
 
 ---

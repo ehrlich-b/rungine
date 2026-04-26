@@ -5,10 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"rungine/internal/uci"
 )
+
+// ErrSchedulerStopped is recorded on pairings that never started because
+// a ShouldStop callback fired (e.g., SPRT early termination).
+var ErrSchedulerStopped = errors.New("scheduler stopped early")
 
 // EngineSpec describes how to spawn a UCI engine for a tournament game.
 // One spec is reused across all games an engine plays in.
@@ -111,6 +116,12 @@ type SchedulerConfig struct {
 	// be safe for concurrent use.
 	OnGameStart    func(p Pairing)
 	OnGameComplete func(o GameOutcome)
+
+	// ShouldStop, when non-nil, is called after each completed game
+	// (also from worker goroutines). Returning true halts dispatch of
+	// further pairings; in-flight games complete normally. Pairings
+	// that never start get ErrSchedulerStopped on their GameOutcome.Err.
+	ShouldStop func(o GameOutcome) bool
 }
 
 // GameOutcome records one completed game.
@@ -146,19 +157,35 @@ func (s *Scheduler) Run(ctx context.Context, pairings []Pairing) []GameOutcome {
 	outcomes := make([]GameOutcome, len(pairings))
 	sem := make(chan struct{}, s.cfg.Concurrency)
 	var wg sync.WaitGroup
+	var stopped atomic.Bool
 
 	for i, p := range pairings {
+		if stopped.Load() {
+			outcomes[i] = GameOutcome{Pairing: p, Err: ErrSchedulerStopped}
+			continue
+		}
 		select {
 		case sem <- struct{}{}:
 		case <-ctx.Done():
 			outcomes[i] = GameOutcome{Pairing: p, Err: ctx.Err()}
 			continue
 		}
+		// Re-check after sem acquire: ShouldStop may have flipped while
+		// we were blocked waiting for an in-flight game to release.
+		if stopped.Load() {
+			<-sem
+			outcomes[i] = GameOutcome{Pairing: p, Err: ErrSchedulerStopped}
+			continue
+		}
 		wg.Add(1)
 		go func(i int, p Pairing) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			outcomes[i] = s.runOne(ctx, p)
+			out := s.runOne(ctx, p)
+			outcomes[i] = out
+			if s.cfg.ShouldStop != nil && s.cfg.ShouldStop(out) {
+				stopped.Store(true)
+			}
 		}(i, p)
 	}
 
