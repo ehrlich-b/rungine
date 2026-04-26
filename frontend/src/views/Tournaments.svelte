@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { App, on } from '../lib/wails';
   import { navigate } from '../lib/router';
+  import GameView from '../components/GameView.svelte';
   import type { registry, main } from '../../wailsjs/go/models';
 
   type Format = 'match' | 'round-robin' | 'gauntlet';
@@ -20,7 +21,25 @@
   let summary = $state<main.TournamentSummary | null>(null);
   let tournaments = $state<main.TournamentSummary[]>([]);
 
+  let viewingGame = $state<{ id: string; gameNumber: number } | null>(null);
+  let gameDetail = $state<main.GameDetail | null>(null);
+
   let unsubs: Array<() => void> = [];
+
+  async function openGame(id: string, gameNumber: number) {
+    viewingGame = { id, gameNumber };
+    try {
+      gameDetail = await App.GetGameDetail(id, gameNumber);
+    } catch (e) {
+      error = `Failed to load game: ${e}`;
+      viewingGame = null;
+    }
+  }
+
+  function closeGame() {
+    viewingGame = null;
+    gameDetail = null;
+  }
 
   async function refresh() {
     try {
@@ -213,7 +232,9 @@
       </form>
 
       <div class="dashboard">
-        {#if summary}
+        {#if viewingGame && gameDetail}
+          <GameView detail={gameDetail} onClose={closeGame} />
+        {:else if summary}
           <div class="card">
             <div class="card-head">
               <strong>Tournament {summary.id}</strong>
@@ -263,7 +284,10 @@
               <h3>Games ({summary.outcomes.length})</h3>
               <div class="games">
                 {#each summary.outcomes.slice().reverse() as g (g.gameNumber)}
-                  <div class="game" class:err={g.error}>
+                  <button
+                    class="game"
+                    class:err={g.error}
+                    onclick={() => openGame(summary!.id, g.gameNumber)}>
                     <span class="g-num muted">#{g.gameNumber}</span>
                     <span class="g-pair">
                       {g.white} <span class="muted">vs</span> {g.black}
@@ -274,7 +298,7 @@
                     {#if g.reason}
                       <span class="muted small">({g.reason})</span>
                     {/if}
-                  </div>
+                  </button>
                 {/each}
               </div>
             {/if}

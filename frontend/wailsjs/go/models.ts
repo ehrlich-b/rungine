@@ -76,6 +76,66 @@ export namespace main {
 	        this.drawMinPly = source["drawMinPly"];
 	    }
 	}
+	export class MoveDetail {
+	    ply: number;
+	    side: string;
+	    uci: string;
+	    san: string;
+	    fen: string;
+	    depth?: number;
+	    evalCp?: number;
+	    evalMate?: number;
+	    elapsedMs: number;
+	    clockAfterMs: number;
+
+	    static createFrom(source: any = {}) {
+	        return new MoveDetail(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ply = source["ply"];
+	        this.side = source["side"];
+	        this.uci = source["uci"];
+	        this.san = source["san"];
+	        this.fen = source["fen"];
+	        this.depth = source["depth"];
+	        this.evalCp = source["evalCp"];
+	        this.evalMate = source["evalMate"];
+	        this.elapsedMs = source["elapsedMs"];
+	        this.clockAfterMs = source["clockAfterMs"];
+	    }
+	}
+	export class GameDetail {
+	    gameNumber: number;
+	    round: string;
+	    white: string;
+	    black: string;
+	    result: string;
+	    reason?: string;
+	    error?: string;
+	    startFen: string;
+	    pgn?: string;
+	    moves: MoveDetail[];
+
+	    static createFrom(source: any = {}) {
+	        return new GameDetail(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.gameNumber = source["gameNumber"];
+	        this.round = source["round"];
+	        this.white = source["white"];
+	        this.black = source["black"];
+	        this.result = source["result"];
+	        this.reason = source["reason"];
+	        this.error = source["error"];
+	        this.startFen = source["startFen"];
+	        this.pgn = source["pgn"];
+	        this.moves = (source["moves"] ?? []).map((m: any) => new MoveDetail(m));
+	    }
+	}
 	export class GameRow {
 	    gameNumber: number;
 	    round: string;

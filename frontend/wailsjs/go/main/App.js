@@ -10,6 +10,10 @@ export function GetEngineOptions(arg1) {
   return window['go']['main']['App']['GetEngineOptions'](arg1);
 }
 
+export function GetGameDetail(arg1, arg2) {
+  return window['go']['main']['App']['GetGameDetail'](arg1, arg2);
+}
+
 export function GetTournament(arg1) {
   return window['go']['main']['App']['GetTournament'](arg1);
 }

@@ -244,18 +244,19 @@ The "world-class" half. TCEC-quality live broadcast.
 
 ### Single-game live view
 
-- [ ] Big board with current position
-- [ ] Move list with live engine annotations
-- [ ] Per-engine panel: name, depth, eval, nodes, NPS, PV (clickable to preview)
+- [x] Big board with current position
+- [x] Move list with engine eval annotations
+- [ ] Per-engine panel: name, depth, eval, nodes, NPS, PV (live, clickable)
 - [ ] Live eval graph (line chart, white POV, depth markers)
 - [ ] Clock display (both sides, ticking)
 - [ ] PV-on-board overlay (arrows for engine's planned line)
 
 ### Replay finished games
 
+- [x] Step through with engine analysis preserved (cached during run)
+- [x] Keyboard navigation (← → Home End F)
 - [ ] Scrubber across game timeline
-- [ ] Step through with engine analysis preserved (cached during run)
-- [ ] Export game PGN with `[%eval]` and `[%clk]`
+- [x] Export game PGN with `[%eval]` and `[%clk]` — Copy PGN button
 
 ### Tournament results page
 

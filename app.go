@@ -254,3 +254,11 @@ func (a *App) ListTournaments() []TournamentSummary {
 	}
 	return a.tournaments.List()
 }
+
+// GetGameDetail returns the per-ply replay of one game in a tournament.
+func (a *App) GetGameDetail(tournamentID string, gameNumber int) (GameDetail, error) {
+	if a.tournaments == nil {
+		return GameDetail{}, nil
+	}
+	return a.tournaments.GetGameDetail(tournamentID, gameNumber)
+}

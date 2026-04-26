@@ -8,6 +8,8 @@ export function GetCPUFeatures():Promise<string>;
 
 export function GetEngineOptions(arg1:string):Promise<Record<string, uci.UCIOption>>;
 
+export function GetGameDetail(arg1:string,arg2:number):Promise<main.GameDetail>;
+
 export function GetTournament(arg1:string):Promise<main.TournamentSummary>;
 
 export function InstallEngine(arg1:string):Promise<void>;

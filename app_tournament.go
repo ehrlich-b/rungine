@@ -52,6 +52,34 @@ type GameRow struct {
 	Error      string `json:"error,omitempty"`
 }
 
+// MoveDetail is one ply with the position after it and engine analysis.
+type MoveDetail struct {
+	Ply          int    `json:"ply"`
+	Side         string `json:"side"` // "white" or "black"
+	UCI          string `json:"uci"`
+	SAN          string `json:"san"`
+	FEN          string `json:"fen"`
+	Depth        int    `json:"depth,omitempty"`
+	EvalCp       *int   `json:"evalCp,omitempty"`
+	EvalMate     *int   `json:"evalMate,omitempty"`
+	ElapsedMs    int64  `json:"elapsedMs"`
+	ClockAfterMs int64  `json:"clockAfterMs"`
+}
+
+// GameDetail is everything the GUI needs to replay a single game.
+type GameDetail struct {
+	GameNumber int          `json:"gameNumber"`
+	Round      string       `json:"round"`
+	White      string       `json:"white"`
+	Black      string       `json:"black"`
+	Result     string       `json:"result"`
+	Reason     string       `json:"reason,omitempty"`
+	Error      string       `json:"error,omitempty"`
+	StartFEN   string       `json:"startFen"`
+	PGN        string       `json:"pgn,omitempty"`
+	Moves      []MoveDetail `json:"moves"`
+}
+
 // PlayerScoreRow is a JSON-friendly standings row.
 type PlayerScoreRow struct {
 	Name   string  `json:"name"`
@@ -382,6 +410,86 @@ func (m *TournamentManager) Get(id string) (TournamentSummary, error) {
 		return TournamentSummary{}, fmt.Errorf("tournament not found: %s", id)
 	}
 	return run.snapshot(), nil
+}
+
+// GetGameDetail reconstructs a per-ply replay from the stored result.
+func (m *TournamentManager) GetGameDetail(tournamentID string, gameNumber int) (GameDetail, error) {
+	m.mu.Lock()
+	run, ok := m.runs[tournamentID]
+	m.mu.Unlock()
+	if !ok {
+		return GameDetail{}, fmt.Errorf("tournament not found: %s", tournamentID)
+	}
+	run.mu.Lock()
+	defer run.mu.Unlock()
+	for _, o := range run.outcomes {
+		if o.Pairing.GameNumber == gameNumber {
+			return buildGameDetail(o)
+		}
+	}
+	return GameDetail{}, fmt.Errorf("game %d not found in tournament %s", gameNumber, tournamentID)
+}
+
+func buildGameDetail(o tournament.GameOutcome) (GameDetail, error) {
+	d := GameDetail{
+		GameNumber: o.Pairing.GameNumber,
+		Round:      o.Pairing.Round,
+		White:      o.Pairing.White.Name,
+		Black:      o.Pairing.Black.Name,
+		PGN:        o.PGN,
+	}
+	if o.Result != nil {
+		d.Result = string(o.Result.Outcome)
+		d.Reason = string(o.Result.Reason)
+	}
+	if o.Err != nil {
+		d.Error = o.Err.Error()
+	}
+
+	var game *chess.Game
+	var err error
+	if o.Pairing.StartFEN != "" {
+		game, err = chess.FromFEN(o.Pairing.StartFEN)
+		if err != nil {
+			return d, fmt.Errorf("start FEN: %w", err)
+		}
+	} else {
+		game = chess.NewGame()
+	}
+	for _, mv := range o.Pairing.StartMoves {
+		if err := game.PushUCI(mv); err != nil {
+			return d, fmt.Errorf("apply opening %s: %w", mv, err)
+		}
+	}
+	d.StartFEN = game.FEN()
+
+	if o.Result == nil {
+		return d, nil
+	}
+	d.Moves = make([]MoveDetail, 0, len(o.Result.Moves))
+	for _, mr := range o.Result.Moves {
+		if err := game.PushUCI(mr.UCI); err != nil {
+			break
+		}
+		md := MoveDetail{
+			Ply: mr.Ply, Side: string(mr.Side),
+			UCI: mr.UCI, SAN: mr.SAN, FEN: game.FEN(),
+			ElapsedMs:    mr.Elapsed.Milliseconds(),
+			ClockAfterMs: mr.ClockAfter.Milliseconds(),
+		}
+		if mr.HasInfo {
+			md.Depth = mr.Info.Depth
+			if mr.Info.Score.Mate != nil {
+				v := *mr.Info.Score.Mate
+				md.EvalMate = &v
+			} else if mr.Info.Score.Centipawns != nil {
+				v := *mr.Info.Score.Centipawns
+				md.EvalCp = &v
+			}
+		}
+		d.Moves = append(d.Moves, md)
+	}
+	return d, nil
 }
 
 // List returns snapshots of all tournaments, oldest first.
