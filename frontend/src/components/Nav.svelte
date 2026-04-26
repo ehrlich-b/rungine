@@ -3,6 +3,7 @@
 
   const items: { id: Route; label: string }[] = [
     { id: 'tournaments', label: 'Tournaments' },
+    { id: 'analyze', label: 'Analyze' },
     { id: 'engines', label: 'Engines' },
     { id: 'settings', label: 'Settings' },
   ];

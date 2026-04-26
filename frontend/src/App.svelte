@@ -3,6 +3,7 @@
   import Nav from './components/Nav.svelte';
   import StatusBar from './components/StatusBar.svelte';
   import Tournaments from './views/Tournaments.svelte';
+  import Analyze from './views/Analyze.svelte';
   import Engines from './views/Engines.svelte';
   import Settings from './views/Settings.svelte';
   import { route } from './lib/router';
@@ -18,6 +19,8 @@
   <main>
     {#if $route === 'engines'}
       <Engines />
+    {:else if $route === 'analyze'}
+      <Analyze />
     {:else if $route === 'settings'}
       <Settings />
     {:else}

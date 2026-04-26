@@ -329,7 +329,7 @@ Not on the critical path to "world-class tournament viewer and runner".
 - [ ] Lichess broadcast follow (watch external tournaments)
 - [ ] Chess.com archive import
 - [ ] Generic PGN library import / massive game database
-- [ ] Standalone analysis mode (load FEN, run engines, no tournament)
+- [x] Standalone analysis mode (load FEN, run engines, no tournament)
 - [ ] Opening book editor
 - [ ] Cloud / remote engine analysis
 - [ ] Chess960 / variants (via Fairy-Stockfish)

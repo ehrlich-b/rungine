@@ -1,8 +1,8 @@
 import { writable } from 'svelte/store';
 
-export type Route = 'tournaments' | 'engines' | 'settings';
+export type Route = 'tournaments' | 'analyze' | 'engines' | 'settings';
 
-const ROUTES: Route[] = ['tournaments', 'engines', 'settings'];
+const ROUTES: Route[] = ['tournaments', 'analyze', 'engines', 'settings'];
 
 function parse(): Route {
   const hash = window.location.hash.replace(/^#\/?/, '');
