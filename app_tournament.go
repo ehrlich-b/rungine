@@ -174,6 +174,19 @@ type tournamentRun struct {
 	outcomes []tournament.GameOutcome
 	cancel   context.CancelFunc
 	sprt     *SprtState
+	// live holds per-game state for currently-running games so the GUI
+	// can open them mid-flight. Entries are removed on OnGameComplete
+	// once the outcome is recorded in `outcomes`.
+	live map[int]*liveGameState
+}
+
+// liveGameState mirrors what an arbiter has produced so far for a running
+// game. It exists so GetGameDetail can return a partial GameDetail while
+// the game is still being played.
+type liveGameState struct {
+	pairing   tournament.Pairing
+	moves     []tournament.MoveRecord
+	latestFEN string
 }
 
 func (r *tournamentRun) snapshot() TournamentSummary {
@@ -519,6 +532,12 @@ func (m *TournamentManager) Start(spec TournamentSpec) (string, error) {
 		DrawMoves:   spec.DrawMoves,
 		DrawMinPly:  spec.DrawMinPly,
 		OnGameStart: func(p tournament.Pairing) {
+			run.mu.Lock()
+			if run.live == nil {
+				run.live = map[int]*liveGameState{}
+			}
+			run.live[p.GameNumber] = &liveGameState{pairing: p}
+			run.mu.Unlock()
 			m.emit("tournament:gameStart", map[string]interface{}{
 				"tournamentId": id,
 				"gameNumber":   p.GameNumber,
@@ -530,6 +549,7 @@ func (m *TournamentManager) Start(spec TournamentSpec) (string, error) {
 		OnGameComplete: func(o tournament.GameOutcome) {
 			run.mu.Lock()
 			run.outcomes = append(run.outcomes, o)
+			delete(run.live, o.Pairing.GameNumber)
 			run.mu.Unlock()
 			if err := m.persistGame(id, o); err != nil {
 				slog.Warn("persist game", "tournament", id, "game", o.Pairing.GameNumber, "err", err)
@@ -541,6 +561,12 @@ func (m *TournamentManager) Start(spec TournamentSpec) (string, error) {
 			})
 		},
 		OnGameMove: func(p tournament.Pairing, rec tournament.MoveRecord, fen string) {
+			run.mu.Lock()
+			if g, ok := run.live[p.GameNumber]; ok {
+				g.moves = append(g.moves, rec)
+				g.latestFEN = fen
+			}
+			run.mu.Unlock()
 			payload := map[string]interface{}{
 				"tournamentId": id,
 				"gameNumber":   p.GameNumber,
@@ -742,6 +768,9 @@ func (m *TournamentManager) GetTournamentPGN(id string) (string, error) {
 }
 
 // GetGameDetail reconstructs a per-ply replay from the stored result.
+// For an in-progress game (no outcome yet) it returns a partial detail
+// with whatever moves have been played so far; result and reason are
+// empty until the game finishes.
 func (m *TournamentManager) GetGameDetail(tournamentID string, gameNumber int) (GameDetail, error) {
 	m.mu.Lock()
 	run, ok := m.runs[tournamentID]
@@ -756,7 +785,66 @@ func (m *TournamentManager) GetGameDetail(tournamentID string, gameNumber int) (
 			return buildGameDetail(o)
 		}
 	}
+	if g, ok := run.live[gameNumber]; ok {
+		return buildLiveGameDetail(g)
+	}
 	return GameDetail{}, fmt.Errorf("game %d not found in tournament %s", gameNumber, tournamentID)
+}
+
+// buildLiveGameDetail builds a partial GameDetail from in-progress game
+// state. Result is "*" and PGN is empty until OnGameComplete fires; the
+// caller can fill in the rest from live tournament:move events.
+func buildLiveGameDetail(g *liveGameState) (GameDetail, error) {
+	d := GameDetail{
+		GameNumber: g.pairing.GameNumber,
+		Round:      g.pairing.Round,
+		White:      g.pairing.White.Name,
+		Black:      g.pairing.Black.Name,
+		WhiteSha:   computeBinaryHash(g.pairing.White.BinaryPath),
+		BlackSha:   computeBinaryHash(g.pairing.Black.BinaryPath),
+		Result:     "*",
+	}
+	var game *chess.Game
+	var err error
+	if g.pairing.StartFEN != "" {
+		game, err = chess.FromFEN(g.pairing.StartFEN)
+		if err != nil {
+			return d, fmt.Errorf("start FEN: %w", err)
+		}
+	} else {
+		game = chess.NewGame()
+	}
+	for _, mv := range g.pairing.StartMoves {
+		if err := game.PushUCI(mv); err != nil {
+			return d, fmt.Errorf("apply opening %s: %w", mv, err)
+		}
+	}
+	d.StartFEN = game.FEN()
+	d.Moves = make([]MoveDetail, 0, len(g.moves))
+	for _, mr := range g.moves {
+		if err := game.PushUCI(mr.UCI); err != nil {
+			break
+		}
+		md := MoveDetail{
+			Ply: mr.Ply, Side: string(mr.Side),
+			UCI: mr.UCI, SAN: mr.SAN, FEN: game.FEN(),
+			ElapsedMs:    mr.Elapsed.Milliseconds(),
+			ClockAfterMs: mr.ClockAfter.Milliseconds(),
+			Check:        game.InCheck(),
+		}
+		if mr.HasInfo {
+			md.Depth = mr.Info.Depth
+			if mr.Info.Score.Mate != nil {
+				v := *mr.Info.Score.Mate
+				md.EvalMate = &v
+			} else if mr.Info.Score.Centipawns != nil {
+				v := *mr.Info.Score.Centipawns
+				md.EvalCp = &v
+			}
+		}
+		d.Moves = append(d.Moves, md)
+	}
+	return d, nil
 }
 
 func buildGameDetail(o tournament.GameOutcome) (GameDetail, error) {

@@ -242,6 +242,64 @@ func TestPersistedEngineSpecHash(t *testing.T) {
 	}
 }
 
+func TestLiveGameDetail(t *testing.T) {
+	mgr := newTournamentManager(nil, nil)
+	mgr.bindContext(context.Background())
+	run := &tournamentRun{
+		id: "t1", spec: TournamentSpec{Format: "match"},
+		status: "running", started: time.Now(), total: 1,
+		live: map[int]*liveGameState{},
+	}
+	mgr.runs[run.id] = run
+	mgr.order = append(mgr.order, run.id)
+
+	// Simulate OnGameStart adding a live entry.
+	pairing := tournament.Pairing{
+		GameNumber: 1, Round: "1.1",
+		White: tournament.EngineSpec{Name: "Stockfish"},
+		Black: tournament.EngineSpec{Name: "Berserk"},
+	}
+	run.live[1] = &liveGameState{pairing: pairing}
+
+	// Simulate two OnGameMove calls appending plies.
+	cp := 25
+	run.live[1].moves = []tournament.MoveRecord{
+		{
+			Ply: 1, Side: chess.White, UCI: "e2e4", SAN: "e4",
+			HasInfo: true,
+			Info:    uci.AnalysisInfo{Depth: 12, Score: uci.Score{Centipawns: &cp}},
+			Elapsed: 500 * time.Millisecond, ClockAfter: 59500 * time.Millisecond,
+		},
+		{
+			Ply: 2, Side: chess.Black, UCI: "e7e5", SAN: "e5",
+			Elapsed: 500 * time.Millisecond, ClockAfter: 59 * time.Second,
+		},
+	}
+	run.live[1].latestFEN = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
+
+	d, err := mgr.GetGameDetail("t1", 1)
+	if err != nil {
+		t.Fatalf("GetGameDetail: %v", err)
+	}
+	if d.Result != "*" {
+		t.Fatalf("running game result = %q, want *", d.Result)
+	}
+	if len(d.Moves) != 2 {
+		t.Fatalf("live moves: %d, want 2", len(d.Moves))
+	}
+	if d.Moves[0].UCI != "e2e4" || d.Moves[0].EvalCp == nil || *d.Moves[0].EvalCp != 25 {
+		t.Fatalf("live move 1 wrong: %+v", d.Moves[0])
+	}
+	if d.Moves[1].SAN != "e5" {
+		t.Fatalf("live move 2 wrong: %+v", d.Moves[1])
+	}
+
+	// Game number 2 doesn't exist yet — should error.
+	if _, err := mgr.GetGameDetail("t1", 2); err == nil {
+		t.Fatal("expected error for missing game")
+	}
+}
+
 func TestDeleteTournament(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "rungine.db")

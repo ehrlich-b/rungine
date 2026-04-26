@@ -4,7 +4,7 @@
   import EvalGraph from './EvalGraph.svelte';
   import { STARTING_FEN, parseFEN, coordsToSquare } from '../lib/chess';
   import { on } from '../lib/wails';
-  import type { main } from '../../wailsjs/go/models';
+  import { main } from '../../wailsjs/go/models';
 
   type Props = {
     detail: main.GameDetail;
@@ -37,10 +37,18 @@
   let flipped = $state(false);
   let showArrows = $state(true);
 
-  let totalPlies = $derived(detail.moves.length);
-  let position = $derived(currentPly === 0 ? detail.startFen : detail.moves[currentPly - 1]?.fen ?? STARTING_FEN);
-  let lastMove = $derived(currentPly === 0 ? null : detail.moves[currentPly - 1]?.uci ?? null);
-  let currentMove = $derived(currentPly === 0 ? null : detail.moves[currentPly - 1] ?? null);
+  // Mirror of detail.moves that grows as live tournament:move events arrive.
+  // Resets when the prop changes (different game opened); live events
+  // subscribed in onMount append to it.
+  let liveMoves = $state<main.MoveDetail[]>([]);
+  $effect(() => {
+    liveMoves = [...detail.moves];
+  });
+
+  let totalPlies = $derived(liveMoves.length);
+  let position = $derived(currentPly === 0 ? detail.startFen : liveMoves[currentPly - 1]?.fen ?? STARTING_FEN);
+  let lastMove = $derived(currentPly === 0 ? null : liveMoves[currentPly - 1]?.uci ?? null);
+  let currentMove = $derived(currentPly === 0 ? null : liveMoves[currentPly - 1] ?? null);
 
   function go(target: number) {
     currentPly = Math.max(0, Math.min(totalPlies, target));
@@ -88,6 +96,28 @@
           };
           if (p.side === 'b') liveBlack = info;
           else liveWhite = info;
+        }),
+        on<any>('tournament:move', (p) => {
+          if (!p) return;
+          if (p.tournamentId !== tournamentId) return;
+          if (p.gameNumber !== detail.gameNumber) return;
+          if (typeof p.ply !== 'number' || p.ply <= liveMoves.length) return;
+          const md = main.MoveDetail.createFrom({
+            ply: p.ply,
+            side: p.side ?? 'w',
+            uci: p.uci ?? '',
+            san: p.san ?? '',
+            fen: p.fen ?? '',
+            depth: p.depth,
+            evalCp: p.evalCp ?? undefined,
+            evalMate: p.evalMate ?? undefined,
+            elapsedMs: p.elapsedMs ?? 0,
+            clockAfterMs: p.clockAfterMs ?? 0,
+            check: p.check,
+          });
+          const wasAtEnd = currentPly === liveMoves.length;
+          liveMoves = [...liveMoves, md];
+          if (wasAtEnd) currentPly = liveMoves.length;
         }),
       );
     }
@@ -148,12 +178,12 @@
   function pairs(): { num: number; white: main.MoveDetail | null; black: main.MoveDetail | null }[] {
     const out: { num: number; white: main.MoveDetail | null; black: main.MoveDetail | null }[] = [];
     let i = 0;
-    while (i < detail.moves.length) {
-      const w = detail.moves[i];
+    while (i < liveMoves.length) {
+      const w = liveMoves[i];
       let b: main.MoveDetail | null = null;
       const pair = { num: Math.floor(i / 2) + 1, white: w, black: null as main.MoveDetail | null };
-      if (i + 1 < detail.moves.length && detail.moves[i + 1].side === 'b') {
-        b = detail.moves[i + 1];
+      if (i + 1 < liveMoves.length && liveMoves[i + 1].side === 'b') {
+        b = liveMoves[i + 1];
         pair.black = b;
         i += 2;
       } else {
@@ -205,7 +235,7 @@
 
   let checkSquare = $derived.by<string | null>(() => {
     if (currentPly === 0) return null;
-    const m = detail.moves[currentPly - 1];
+    const m = liveMoves[currentPly - 1];
     if (!m || !m.check) return null;
     // Side to move after this ply is the side that just received check.
     const kingOf: 'w' | 'b' = m.side === 'w' ? 'b' : 'w';
@@ -291,9 +321,9 @@
           {/if}
         </div>
       {/if}
-      {#if detail.moves.length > 0}
+      {#if liveMoves.length > 0}
         <EvalGraph
-          moves={detail.moves}
+          moves={liveMoves}
           {currentPly}
           onJump={(p) => go(p)}
           height={70} />
@@ -369,7 +399,7 @@
           {/if}
         </div>
       {/each}
-      {#if detail.moves.length === 0}
+      {#if liveMoves.length === 0}
         <p class="muted small">No moves recorded.</p>
       {/if}
     </div>
