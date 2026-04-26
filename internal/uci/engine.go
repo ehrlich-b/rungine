@@ -358,13 +358,30 @@ func (e *Engine) readLoop() {
 		e.logger.Debug("received", "line", line)
 
 		parsed := ParseLine(line)
+		// outputCh is only consumed during init (waitFor uciok/readyok).
+		// Once the engine is in normal play, nothing reads it, so the
+		// send must be non-blocking — otherwise it eventually fills and
+		// stalls the read loop, which strands the bestmove and triggers
+		// a spurious time forfeit.
 		select {
 		case e.outputCh <- parsed:
 		case <-e.ctx.Done():
 			return
+		default:
+			// Drop one old line and try once more so the latest control
+			// frames (uciok / readyok) still surface to waitFor.
+			select {
+			case <-e.outputCh:
+			default:
+			}
+			select {
+			case e.outputCh <- parsed:
+			default:
+			}
 		}
 
-		// Also handle info/bestmove directly for channel dispatch
+		// Direct dispatch into infoCh / bestMoveCh — these are what the
+		// arbiter actually reads during a search.
 		e.handleLine(parsed)
 	}
 
