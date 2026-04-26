@@ -54,6 +54,11 @@
     try {
       installed = (await App.ListInstalledEngines()) ?? [];
       tournaments = (await App.ListTournaments()) ?? [];
+      if (!activeTournamentId && tournaments.length > 0) {
+        // Auto-focus the most recent tournament so the dashboard is visible
+        // immediately, even when there's only one in the list.
+        activeTournamentId = tournaments[tournaments.length - 1].id;
+      }
       if (activeTournamentId) {
         summary = await App.GetTournament(activeTournamentId);
       }
@@ -403,14 +408,14 @@
                 <tbody>
                   {#each summary.standings as p (p.name)}
                     <tr>
-                      <td>{p.name}</td>
+                      <td title={p.name}>{p.name}</td>
                       <td>{p.games}</td>
                       <td>{p.wins}</td>
                       <td>{p.draws}</td>
                       <td>{p.losses}</td>
                       <td>{p.points.toFixed(1)}</td>
-                      <td>{p.elo > 0 ? '+' : ''}{p.elo.toFixed(0)}</td>
-                      <td class="muted">
+                      <td class="cell-elo">{p.elo > 0 ? '+' : ''}{p.elo.toFixed(0)}</td>
+                      <td class="muted cell-ci">
                         [{p.eloLo > 0 ? '+' : ''}{p.eloLo.toFixed(0)},
                         {p.eloHi > 0 ? '+' : ''}{p.eloHi.toFixed(0)}]
                       </td>
@@ -557,8 +562,8 @@
 
   .layout {
     display: grid;
-    grid-template-columns: minmax(300px, 380px) 1fr;
-    gap: var(--space-lg);
+    grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+    gap: var(--space-md);
     align-items: flex-start;
   }
 
@@ -566,6 +571,18 @@
     .layout {
       grid-template-columns: 1fr;
     }
+  }
+
+  .dashboard {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .standings,
+  .crosstable-wrap,
+  .games {
+    max-width: 100%;
+    overflow-x: auto;
   }
 
   .setup,
@@ -866,13 +883,22 @@
   .standings {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
+    table-layout: auto;
   }
 
   .standings th,
   .standings td {
-    padding: 4px 8px;
+    padding: 4px 6px;
     text-align: left;
+    white-space: nowrap;
+  }
+
+  .standings td:first-child {
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .standings th {
@@ -891,6 +917,14 @@
 
   .standings th:nth-child(n + 2) {
     text-align: right;
+  }
+
+  .standings .cell-elo {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .standings .cell-ci {
+    font-size: 0.72rem;
   }
 
   .crosstable-wrap {
