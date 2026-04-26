@@ -4,7 +4,8 @@
   import { navigate } from '../lib/router';
   import GameView from '../components/GameView.svelte';
   import LiveGames from '../components/LiveGames.svelte';
-  import type { registry, main } from '../../wailsjs/go/models';
+  import type { registry } from '../../wailsjs/go/models';
+  import { main } from '../../wailsjs/go/models';
 
   type Format = 'match' | 'round-robin' | 'gauntlet';
 
@@ -23,6 +24,12 @@
   let movetimeMs = $state(200);
   let concurrency = $state(1);
   let pairMode = $state(true);
+
+  let sprtEnabled = $state(false);
+  let sprtElo0 = $state(0);
+  let sprtElo1 = $state(20);
+  let sprtAlpha = $state(0.05);
+  let sprtBeta = $state(0.05);
 
   let starting = $state(false);
   let error = $state<string | null>(null);
@@ -140,6 +147,10 @@
         drawScore: -1,
         drawMoves: 8,
         drawMinPly: 60,
+        sprtElo0: format === 'match' && sprtEnabled ? sprtElo0 : 0,
+        sprtElo1: format === 'match' && sprtEnabled ? sprtElo1 : 0,
+        sprtAlpha: format === 'match' && sprtEnabled ? sprtAlpha : 0,
+        sprtBeta: format === 'match' && sprtEnabled ? sprtBeta : 0,
       } as any);
       activeTournamentId = id;
       summary = await App.GetTournament(id);
@@ -208,6 +219,11 @@
           summary = await App.GetTournament(activeTournamentId);
         }
         tournaments = (await App.ListTournaments()) ?? [];
+      }),
+      on<{ tournamentId: string; sprt: main.SprtState }>('tournament:sprt', (p) => {
+        if (p && p.tournamentId === activeTournamentId && summary) {
+          summary = main.TournamentSummary.createFrom({ ...summary, sprt: p.sprt });
+        }
       }),
     );
   });
@@ -355,6 +371,39 @@
           </label>
         </div>
 
+        {#if format === 'match'}
+          <div class="field">
+            <label class="check inline">
+              <input type="checkbox" bind:checked={sprtEnabled} />
+              <span>SPRT (early-stop on ELO bound)</span>
+            </label>
+            {#if sprtEnabled}
+              <div class="grid sprt-grid">
+                <label>
+                  <span class="label">Elo0 (H0)</span>
+                  <input type="number" step="1" bind:value={sprtElo0} />
+                </label>
+                <label>
+                  <span class="label">Elo1 (H1)</span>
+                  <input type="number" step="1" bind:value={sprtElo1} />
+                </label>
+                <label>
+                  <span class="label">Alpha</span>
+                  <input type="number" step="0.01" min="0.001" max="0.5" bind:value={sprtAlpha} />
+                </label>
+                <label>
+                  <span class="label">Beta</span>
+                  <input type="number" step="0.01" min="0.001" max="0.5" bind:value={sprtBeta} />
+                </label>
+              </div>
+              <span class="hint subtle">
+                First slot is the candidate. Match stops as soon as LLR crosses
+                a bound.
+              </span>
+            {/if}
+          </div>
+        {/if}
+
         <button type="submit" class="primary" disabled={!canStart()}>
           {starting ? 'Starting…' : 'Start tournament'}
         </button>
@@ -383,6 +432,39 @@
                 {summary.gamesPlayed} / {summary.gamesTotal} games
               </span>
             </div>
+
+            {#if summary.sprt}
+              {@const s = summary.sprt}
+              {@const span = s.upperBound - s.lowerBound}
+              {@const pos = span > 0
+                ? Math.max(0, Math.min(1, (s.llr - s.lowerBound) / span)) * 100
+                : 50}
+              <div class="sprt-panel" class:decided={s.decision !== 'continue'}>
+                <div class="sprt-head">
+                  <strong>SPRT</strong>
+                  <span class="sprt-decision sprt-{s.decision.replace(' ', '-')}">
+                    {s.decision}
+                  </span>
+                  <span class="sprt-wdl muted">
+                    {s.wins}W / {s.draws}D / {s.losses}L
+                  </span>
+                </div>
+                <div class="sprt-track">
+                  <div class="sprt-bound sprt-bound-low" title="Reject H1">
+                    {s.lowerBound.toFixed(2)}
+                  </div>
+                  <div class="sprt-bar">
+                    <div class="sprt-marker" style:left="{pos}%"></div>
+                  </div>
+                  <div class="sprt-bound sprt-bound-high" title="Accept H1">
+                    {s.upperBound.toFixed(2)}
+                  </div>
+                </div>
+                <div class="sprt-llr">
+                  LLR <strong>{s.llr.toFixed(3)}</strong>
+                </div>
+              </div>
+            {/if}
 
             {#if summary.status === 'running'}
               <LiveGames
@@ -1058,5 +1140,89 @@
     flex-direction: column;
     gap: var(--space-md);
     min-width: 0;
+  }
+
+  .sprt-grid {
+    margin-top: var(--space-sm);
+  }
+
+  .sprt-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+    margin: var(--space-sm) 0;
+  }
+
+  .sprt-panel.decided {
+    border-color: var(--accent);
+  }
+
+  .sprt-head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-md);
+  }
+
+  .sprt-decision {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 0.8rem;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-3);
+    color: var(--text-secondary);
+  }
+
+  .sprt-decision.sprt-accept-H1 {
+    background: rgba(74, 222, 128, 0.15);
+    color: var(--result-win);
+  }
+
+  .sprt-decision.sprt-accept-H0 {
+    background: rgba(248, 113, 113, 0.15);
+    color: var(--result-loss);
+  }
+
+  .sprt-wdl {
+    font-size: 0.85rem;
+    margin-left: auto;
+  }
+
+  .sprt-track {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+
+  .sprt-bound {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .sprt-bar {
+    position: relative;
+    height: 6px;
+    background: var(--surface-3);
+    border-radius: 3px;
+  }
+
+  .sprt-marker {
+    position: absolute;
+    top: -2px;
+    width: 3px;
+    height: 10px;
+    background: var(--accent);
+    border-radius: 2px;
+    transform: translateX(-50%);
+  }
+
+  .sprt-llr {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
   }
 </style>

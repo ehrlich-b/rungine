@@ -39,6 +39,26 @@ type TournamentSpec struct {
 	DrawScore     int                   `json:"drawScore"`
 	DrawMoves     int                   `json:"drawMoves"`
 	DrawMinPly    int                   `json:"drawMinPly"`
+
+	// SPRT (match format only). Both Alpha and Beta must be > 0 to enable.
+	// The first engine in Engines is treated as the candidate.
+	SprtElo0  float64 `json:"sprtElo0"`
+	SprtElo1  float64 `json:"sprtElo1"`
+	SprtAlpha float64 `json:"sprtAlpha"`
+	SprtBeta  float64 `json:"sprtBeta"`
+}
+
+// SprtState is the live SPRT progress for a tournament that has SPRT
+// enabled. Decision strings: "continue", "accept H0", "accept H1".
+type SprtState struct {
+	LLR        float64 `json:"llr"`
+	LowerBound float64 `json:"lowerBound"`
+	UpperBound float64 `json:"upperBound"`
+	Decision   string  `json:"decision"`
+	// Wins/Draws/Losses are tallied from the candidate's POV.
+	Wins   int `json:"wins"`
+	Draws  int `json:"draws"`
+	Losses int `json:"losses"`
 }
 
 // GameRow is a flattened, JSON-friendly view of a completed game.
@@ -127,6 +147,7 @@ type TournamentSummary struct {
 	Outcomes    []GameRow        `json:"outcomes"`
 	Standings   []PlayerScoreRow `json:"standings"`
 	Crosstable  CrosstableData   `json:"crosstable"`
+	Sprt        *SprtState       `json:"sprt,omitempty"`
 }
 
 type tournamentRun struct {
@@ -140,6 +161,7 @@ type tournamentRun struct {
 	total    int
 	outcomes []tournament.GameOutcome
 	cancel   context.CancelFunc
+	sprt     *SprtState
 }
 
 func (r *tournamentRun) snapshot() TournamentSummary {
@@ -160,12 +182,18 @@ func (r *tournamentRun) snapshot() TournamentSummary {
 			Elo: elos[p.Name], EloLo: lo, EloHi: hi,
 		})
 	}
+	var sprt *SprtState
+	if r.sprt != nil {
+		s := *r.sprt
+		sprt = &s
+	}
 	return TournamentSummary{
 		ID: r.id, Spec: r.spec, Status: r.status, Error: r.errStr,
 		StartedAt: r.started, FinishedAt: r.finished,
 		GamesTotal: r.total, GamesPlayed: len(r.outcomes),
 		Outcomes: rows, Standings: psRows,
 		Crosstable: buildCrosstableData(r.outcomes),
+		Sprt:       sprt,
 	}
 }
 
@@ -214,6 +242,43 @@ func buildCrosstableData(outcomes []tournament.GameOutcome) CrosstableData {
 		}
 	}
 	return CrosstableData{Players: ct.Players, Cells: cells}
+}
+
+// sprtTally counts wins/draws/losses for the candidate across the
+// outcome list. Foreign games (without the candidate) and errored games
+// are ignored.
+func sprtTally(outcomes []tournament.GameOutcome, candidate string) (w, d, l int) {
+	for _, o := range outcomes {
+		if o.Err != nil || o.Result == nil {
+			continue
+		}
+		var candidateIsWhite bool
+		switch candidate {
+		case o.Pairing.White.Name:
+			candidateIsWhite = true
+		case o.Pairing.Black.Name:
+			candidateIsWhite = false
+		default:
+			continue
+		}
+		switch o.Result.Outcome {
+		case chess.WhiteWins:
+			if candidateIsWhite {
+				w++
+			} else {
+				l++
+			}
+		case chess.BlackWins:
+			if candidateIsWhite {
+				l++
+			} else {
+				w++
+			}
+		case chess.Drawn:
+			d++
+		}
+	}
+	return
 }
 
 func gameOutcomeRow(o tournament.GameOutcome) GameRow {
@@ -400,6 +465,12 @@ func (m *TournamentManager) Start(spec TournamentSpec) (string, error) {
 	m.order = append(m.order, id)
 	m.mu.Unlock()
 
+	sprtEnabled := spec.Format == "match" && spec.SprtAlpha > 0 && spec.SprtBeta > 0
+	candidateName := ""
+	if sprtEnabled && len(engineSpecs) >= 1 {
+		candidateName = engineSpecs[0].Name
+	}
+
 	cfg := tournament.SchedulerConfig{
 		Concurrency: concurrency,
 		TimeControl: timeControlFromSpec(spec),
@@ -452,6 +523,45 @@ func (m *TournamentManager) Start(spec TournamentSpec) (string, error) {
 			}
 			m.emit("tournament:move", payload)
 		},
+	}
+
+	if sprtEnabled {
+		sprtCfg := tournament.SPRTConfig{
+			Elo0:  spec.SprtElo0,
+			Elo1:  spec.SprtElo1,
+			Alpha: spec.SprtAlpha,
+			Beta:  spec.SprtBeta,
+		}
+		// Initialize Sprt state with bounds so the UI can render the gauge
+		// before any games complete.
+		lower, upper := sprtCfg.Bounds()
+		run.mu.Lock()
+		run.sprt = &SprtState{LowerBound: lower, UpperBound: upper, Decision: "continue"}
+		run.mu.Unlock()
+		var w, d, l int
+		cfg.ShouldStop = tournament.NewSPRTStopperWithProgress(
+			sprtCfg, candidateName,
+			func(r tournament.SPRTResult) {
+				// Tally W/D/L for the candidate using the latest run state.
+				run.mu.Lock()
+				outcomes := run.outcomes
+				w, d, l = sprtTally(outcomes, candidateName)
+				run.sprt = &SprtState{
+					LLR:        r.LLR,
+					LowerBound: r.LowerBound,
+					UpperBound: r.UpperBound,
+					Decision:   r.Decision.String(),
+					Wins:       w, Draws: d, Losses: l,
+				}
+				snapshot := *run.sprt
+				run.mu.Unlock()
+				m.emit("tournament:sprt", map[string]interface{}{
+					"tournamentId": id,
+					"sprt":         snapshot,
+				})
+			},
+			nil,
+		)
 	}
 
 	sch, err := tournament.NewScheduler(cfg)

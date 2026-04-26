@@ -297,11 +297,15 @@ export namespace main {
 	    drawScore: number;
 	    drawMoves: number;
 	    drawMinPly: number;
-	
+	    sprtElo0: number;
+	    sprtElo1: number;
+	    sprtAlpha: number;
+	    sprtBeta: number;
+
 	    static createFrom(source: any = {}) {
 	        return new TournamentSpec(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.format = source["format"];
@@ -318,6 +322,10 @@ export namespace main {
 	        this.drawScore = source["drawScore"];
 	        this.drawMoves = source["drawMoves"];
 	        this.drawMinPly = source["drawMinPly"];
+	        this.sprtElo0 = source["sprtElo0"];
+	        this.sprtElo1 = source["sprtElo1"];
+	        this.sprtAlpha = source["sprtAlpha"];
+	        this.sprtBeta = source["sprtBeta"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -338,6 +346,30 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class SprtState {
+	    llr: number;
+	    lowerBound: number;
+	    upperBound: number;
+	    decision: string;
+	    wins: number;
+	    draws: number;
+	    losses: number;
+
+	    static createFrom(source: any = {}) {
+	        return new SprtState(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.llr = source["llr"];
+	        this.lowerBound = source["lowerBound"];
+	        this.upperBound = source["upperBound"];
+	        this.decision = source["decision"];
+	        this.wins = source["wins"];
+	        this.draws = source["draws"];
+	        this.losses = source["losses"];
+	    }
+	}
 	export class TournamentSummary {
 	    id: string;
 	    spec: TournamentSpec;
@@ -352,11 +384,12 @@ export namespace main {
 	    outcomes: GameRow[];
 	    standings: PlayerScoreRow[];
 	    crosstable: CrosstableData;
-	
+	    sprt?: SprtState;
+
 	    static createFrom(source: any = {}) {
 	        return new TournamentSummary(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -370,6 +403,7 @@ export namespace main {
 	        this.outcomes = this.convertValues(source["outcomes"], GameRow);
 	        this.standings = this.convertValues(source["standings"], PlayerScoreRow);
 	        this.crosstable = this.convertValues(source["crosstable"], CrosstableData);
+	        this.sprt = this.convertValues(source["sprt"], SprtState);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
