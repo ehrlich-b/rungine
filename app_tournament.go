@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -507,6 +508,27 @@ func (m *TournamentManager) Get(id string) (TournamentSummary, error) {
 		return TournamentSummary{}, fmt.Errorf("tournament not found: %s", id)
 	}
 	return run.snapshot(), nil
+}
+
+// GetTournamentPGN returns the concatenated PGN of every game in a tournament.
+func (m *TournamentManager) GetTournamentPGN(id string) (string, error) {
+	m.mu.Lock()
+	run, ok := m.runs[id]
+	m.mu.Unlock()
+	if !ok {
+		return "", fmt.Errorf("tournament not found: %s", id)
+	}
+	run.mu.Lock()
+	defer run.mu.Unlock()
+	var sb strings.Builder
+	for _, o := range run.outcomes {
+		if o.PGN == "" {
+			continue
+		}
+		sb.WriteString(o.PGN)
+		sb.WriteString("\n\n")
+	}
+	return sb.String(), nil
 }
 
 // GetGameDetail reconstructs a per-ply replay from the stored result.

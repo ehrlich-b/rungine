@@ -260,10 +260,10 @@ The "world-class" half. TCEC-quality live broadcast.
 
 ### Tournament results page
 
-- [ ] Final crosstable
-- [ ] ELO with CI per engine
-- [ ] All games table (white / black / result / length / duration)
-- [ ] Export full tournament PGN
+- [x] Final crosstable (rendered when 3+ engines)
+- [x] ELO with CI per engine
+- [x] All games table (white / black / result / reason)
+- [x] Export full tournament PGN
 - [ ] Save tournament to database
 
 ---

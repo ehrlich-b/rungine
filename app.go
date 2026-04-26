@@ -354,3 +354,11 @@ func (a *App) GetGameDetail(tournamentID string, gameNumber int) (GameDetail, er
 	}
 	return a.tournaments.GetGameDetail(tournamentID, gameNumber)
 }
+
+// GetTournamentPGN returns all games of a tournament concatenated as PGN.
+func (a *App) GetTournamentPGN(tournamentID string) (string, error) {
+	if a.tournaments == nil {
+		return "", nil
+	}
+	return a.tournaments.GetTournamentPGN(tournamentID)
+}

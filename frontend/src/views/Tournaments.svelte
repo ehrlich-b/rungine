@@ -107,6 +107,24 @@
     }
   }
 
+  async function exportPGN() {
+    if (!summary) return;
+    try {
+      const pgn = await App.GetTournamentPGN(summary.id);
+      const blob = new Blob([pgn], { type: 'application/x-chess-pgn' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${summary.id}.pgn`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      error = `Export failed: ${e}`;
+    }
+  }
+
   function formatOutcome(o: string): string {
     if (o === '1-0') return 'White wins';
     if (o === '0-1') return 'Black wins';
@@ -240,6 +258,9 @@
             <div class="card-head">
               <strong>Tournament {summary.id}</strong>
               <span class="status status-{summary.status}">{summary.status}</span>
+              {#if summary.outcomes.length > 0}
+                <button class="export" onclick={exportPGN}>Export PGN</button>
+              {/if}
             </div>
             <div class="progress">
               <div
@@ -576,7 +597,12 @@
     display: flex;
     align-items: center;
     gap: var(--space-sm);
-    justify-content: space-between;
+  }
+
+  .card-head .export {
+    margin-left: auto;
+    font-size: 0.8rem;
+    padding: 4px 10px;
   }
 
   .status {

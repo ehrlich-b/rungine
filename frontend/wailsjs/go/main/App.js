@@ -22,6 +22,10 @@ export function GetTournament(arg1) {
   return window['go']['main']['App']['GetTournament'](arg1);
 }
 
+export function GetTournamentPGN(arg1) {
+  return window['go']['main']['App']['GetTournamentPGN'](arg1);
+}
+
 export function InstallEngine(arg1) {
   return window['go']['main']['App']['InstallEngine'](arg1);
 }
