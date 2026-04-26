@@ -74,6 +74,20 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class EngineProfile {
+	    name: string;
+	    values: Record<string, string>;
+
+	    static createFrom(source: any = {}) {
+	        return new EngineProfile(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.values = source["values"];
+	    }
+	}
 	export class EngineOptionDef {
 	    name: string;
 	    type: string;

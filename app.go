@@ -327,6 +327,49 @@ func (a *App) SetEngineOptionConfig(engineID string, options map[string]string) 
 	return a.installer.UpdateOptions(engineID, options)
 }
 
+// EngineProfile lists a named UCI option preset.
+type EngineProfile struct {
+	Name   string            `json:"name"`
+	Values map[string]string `json:"values"`
+}
+
+// ListEngineProfiles returns the registry-defined profiles for an
+// installed engine. Custom (non-registry) engines have no profiles.
+func (a *App) ListEngineProfiles(engineID string) ([]EngineProfile, error) {
+	if a.installer == nil {
+		return nil, nil
+	}
+	installed, err := a.installer.GetInstalled(engineID)
+	if err != nil {
+		return nil, err
+	}
+	if installed.RegistryID == "" {
+		return nil, nil
+	}
+	def, err := a.registry.GetEngine(installed.RegistryID)
+	if err != nil {
+		return nil, nil
+	}
+	out := make([]EngineProfile, 0, len(def.Profiles))
+	for name, p := range def.Profiles {
+		values := map[string]string{}
+		for k, v := range p {
+			values[k] = anyToString(v)
+		}
+		out = append(out, EngineProfile{Name: name, Values: values})
+	}
+	return out, nil
+}
+
+// ApplyEngineProfile overlays the profile values onto the engine's
+// stored option overrides. Returns the new full override map.
+func (a *App) ApplyEngineProfile(engineID, profileName string) (map[string]string, error) {
+	if a.installer == nil {
+		return nil, nil
+	}
+	return a.installer.ApplyProfile(engineID, profileName)
+}
+
 func anyToString(v interface{}) string {
 	if v == nil {
 		return ""

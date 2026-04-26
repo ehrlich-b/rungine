@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -613,6 +614,77 @@ func (i *Installer) UpdateOptions(engineID string, options map[string]string) er
 	}
 	configPath := filepath.Join(i.installDir, engineID, "config.toml")
 	return i.saveConfig(configPath, engine)
+}
+
+// ApplyProfile overlays the named profile's option values onto an
+// installed engine's overrides, replacing any existing entries for those
+// keys. "auto" values are resolved to the host CPU count.
+func (i *Installer) ApplyProfile(engineID, profileName string) (map[string]string, error) {
+	installed, err := i.GetInstalled(engineID)
+	if err != nil {
+		return nil, err
+	}
+	if installed.RegistryID == "" {
+		return nil, fmt.Errorf("engine %s has no registry profile", engineID)
+	}
+	def, err := i.manager.GetEngine(installed.RegistryID)
+	if err != nil {
+		return nil, err
+	}
+	profile, ok := def.Profiles[profileName]
+	if !ok {
+		return nil, fmt.Errorf("profile %q not found for engine %s", profileName, engineID)
+	}
+	if installed.OptionValues == nil {
+		installed.OptionValues = map[string]string{}
+	}
+	cpuCount := numCPU()
+	for k, v := range profile {
+		s := profileValueToString(v, cpuCount)
+		installed.OptionValues[k] = s
+	}
+	configPath := filepath.Join(i.installDir, engineID, "config.toml")
+	if err := i.saveConfig(configPath, installed); err != nil {
+		return nil, err
+	}
+	return installed.OptionValues, nil
+}
+
+// profileValueToString flattens a profile value to a UCI string.
+// "auto" resolves to cpuCount for known thread-like keys.
+func profileValueToString(v any, cpuCount int) string {
+	switch x := v.(type) {
+	case string:
+		if x == "auto" {
+			return fmt.Sprintf("%d", cpuCount)
+		}
+		return x
+	case bool:
+		if x {
+			return "true"
+		}
+		return "false"
+	case int:
+		return fmt.Sprintf("%d", x)
+	case int64:
+		return fmt.Sprintf("%d", x)
+	case float64:
+		if x == float64(int64(x)) {
+			return fmt.Sprintf("%d", int64(x))
+		}
+		return fmt.Sprintf("%g", x)
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+}
+
+// numCPU returns the number of usable CPUs. Wrapped for tests.
+var numCPU = func() int {
+	n := runtime.NumCPU()
+	if n < 1 {
+		return 1
+	}
+	return n
 }
 
 // Uninstall removes an installed engine.

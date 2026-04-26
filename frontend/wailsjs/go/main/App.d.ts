@@ -6,6 +6,10 @@ import {registry} from '../models';
 
 export function AddCustomEngine(arg1:string,arg2:string):Promise<registry.InstalledEngine>;
 
+export function ApplyEngineProfile(arg1:string,arg2:string):Promise<Record<string, string>>;
+
+export function ListEngineProfiles(arg1:string):Promise<Array<main.EngineProfile>>;
+
 export function GetCPUFeatures():Promise<string>;
 
 export function GetEngineOptionConfig(arg1:string):Promise<main.EngineOptionConfig>;

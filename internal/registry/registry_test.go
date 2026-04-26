@@ -1,6 +1,8 @@
 package registry
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -356,6 +358,120 @@ func TestParseBuildKey(t *testing.T) {
 				t.Errorf("ParseBuildKey() feature = %q, want %q", feature, tc.wantFeature)
 			}
 		})
+	}
+}
+
+func TestApplyProfile(t *testing.T) {
+	tomlData := []byte(`
+[meta]
+version = "1.0.0"
+
+[engines.sf-test]
+name = "SF Test"
+
+[engines.sf-test.builds.linux-amd64]
+url = "https://example.com/sf.tar"
+sha256 = "hash"
+binary = "stockfish"
+
+[engines.sf-test.profiles.analysis]
+Hash = 1024
+Threads = "auto"
+MultiPV = 3
+UseNN = true
+`)
+
+	mgr := NewManager("", CPUFeatures{})
+	mgr.os = "linux"
+	mgr.arch = "amd64"
+	if err := mgr.LoadFromEmbed(tomlData); err != nil {
+		t.Fatalf("LoadFromEmbed() error: %v", err)
+	}
+
+	tmp := t.TempDir()
+	inst := &Installer{manager: mgr, installDir: tmp}
+
+	// Pre-create an InstalledEngine config on disk.
+	engineDir := filepath.Join(tmp, "sf-test")
+	if err := os.MkdirAll(engineDir, 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := inst.saveConfig(filepath.Join(engineDir, "config.toml"), &InstalledEngine{
+		ID:         "sf-test",
+		RegistryID: "sf-test",
+		Name:       "SF Test",
+		BinaryPath: "/dev/null",
+	}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	prevCPU := numCPU
+	numCPU = func() int { return 8 }
+	defer func() { numCPU = prevCPU }()
+
+	values, err := inst.ApplyProfile("sf-test", "analysis")
+	if err != nil {
+		t.Fatalf("ApplyProfile: %v", err)
+	}
+	if got := values["Hash"]; got != "1024" {
+		t.Errorf("Hash = %q, want 1024", got)
+	}
+	if got := values["Threads"]; got != "8" {
+		t.Errorf("Threads = %q, want 8 (auto)", got)
+	}
+	if got := values["MultiPV"]; got != "3" {
+		t.Errorf("MultiPV = %q, want 3", got)
+	}
+	if got := values["UseNN"]; got != "true" {
+		t.Errorf("UseNN = %q, want true", got)
+	}
+
+	// Re-load from disk and verify persistence.
+	got, err := inst.GetInstalled("sf-test")
+	if err != nil {
+		t.Fatalf("GetInstalled: %v", err)
+	}
+	if got.OptionValues["Hash"] != "1024" {
+		t.Errorf("persisted Hash = %q", got.OptionValues["Hash"])
+	}
+}
+
+func TestApplyProfileNotFound(t *testing.T) {
+	tomlData := []byte(`
+[meta]
+version = "1.0.0"
+
+[engines.sf-test]
+name = "SF Test"
+
+[engines.sf-test.builds.linux-amd64]
+url = "https://example.com/sf.tar"
+sha256 = "hash"
+binary = "stockfish"
+`)
+
+	mgr := NewManager("", CPUFeatures{})
+	mgr.os = "linux"
+	mgr.arch = "amd64"
+	if err := mgr.LoadFromEmbed(tomlData); err != nil {
+		t.Fatalf("LoadFromEmbed: %v", err)
+	}
+
+	tmp := t.TempDir()
+	inst := &Installer{manager: mgr, installDir: tmp}
+	engineDir := filepath.Join(tmp, "sf-test")
+	if err := os.MkdirAll(engineDir, 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := inst.saveConfig(filepath.Join(engineDir, "config.toml"), &InstalledEngine{
+		ID:         "sf-test",
+		RegistryID: "sf-test",
+	}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	if _, err := inst.ApplyProfile("sf-test", "nonexistent"); err == nil {
+		t.Error("expected error for missing profile")
 	}
 }
 

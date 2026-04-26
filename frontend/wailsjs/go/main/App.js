@@ -6,6 +6,14 @@ export function AddCustomEngine(arg1, arg2) {
   return window['go']['main']['App']['AddCustomEngine'](arg1, arg2);
 }
 
+export function ApplyEngineProfile(arg1, arg2) {
+  return window['go']['main']['App']['ApplyEngineProfile'](arg1, arg2);
+}
+
+export function ListEngineProfiles(arg1) {
+  return window['go']['main']['App']['ListEngineProfiles'](arg1);
+}
+
 export function GetCPUFeatures() {
   return window['go']['main']['App']['GetCPUFeatures']();
 }

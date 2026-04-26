@@ -14,15 +14,36 @@
   let working = $state<Record<string, string>>({});
   let saving = $state(false);
   let error = $state<string | null>(null);
+  let profiles = $state<main.EngineProfile[]>([]);
+  let applyingProfile = $state<string | null>(null);
 
   async function load() {
     error = null;
     try {
-      const c = await App.GetEngineOptionConfig(engineId);
+      const [c, ps] = await Promise.all([
+        App.GetEngineOptionConfig(engineId),
+        App.ListEngineProfiles(engineId),
+      ]);
       config = c;
       working = { ...c.values };
+      profiles = ps ?? [];
     } catch (e) {
       error = `Load failed: ${e}`;
+    }
+  }
+
+  async function applyProfile(name: string) {
+    applyingProfile = name;
+    error = null;
+    try {
+      const values = await App.ApplyEngineProfile(engineId, name);
+      working = { ...(values ?? {}) };
+      await load();
+      onSaved?.();
+    } catch (e) {
+      error = `Apply profile failed: ${e}`;
+    } finally {
+      applyingProfile = null;
     }
   }
 
@@ -103,6 +124,20 @@
   {:else if config.definitions.length === 0}
     <p class="muted">No documented options for this engine.</p>
   {:else}
+    {#if profiles.length > 0}
+      <div class="profiles">
+        <span class="muted small">Profiles:</span>
+        {#each profiles as p (p.name)}
+          <button
+            type="button"
+            class="profile-btn"
+            disabled={saving || applyingProfile !== null}
+            onclick={() => applyProfile(p.name)}>
+            {applyingProfile === p.name ? `Applying ${p.name}…` : p.name}
+          </button>
+        {/each}
+      </div>
+    {/if}
     <div class="grid">
       {#each config.definitions as def (def.name)}
         {@const v = effectiveValue(def)}
@@ -289,5 +324,33 @@
     display: flex;
     justify-content: flex-end;
     gap: var(--space-sm);
+  }
+
+  .profiles {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    flex-wrap: wrap;
+  }
+
+  .profile-btn {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    text-transform: capitalize;
+  }
+
+  .profile-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .profile-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
   }
 </style>
