@@ -99,8 +99,8 @@ Status tracker. Check items as completed.
 - [x] `npm install && npm run build` produces `frontend/dist/`
 - [x] `go build ./...` succeeds (embed resolves)
 - [x] Fix macOS test failures in `internal/registry/registry_test.go` (parameterize OS/arch on `Manager`)
-- [ ] Verify `wails dev` launches with hot reload (requires `wails` CLI)
-- [ ] CI: `go build ./...`, `go test ./...`, frontend type check on push
+- [x] Verify `wails dev` launches with hot reload (requires `wails` CLI)
+- [x] CI: `go build ./...`, `go test ./...`, frontend type check on push
 
 ### Chess core (`internal/chess/`)
 
