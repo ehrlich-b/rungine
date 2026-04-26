@@ -196,7 +196,7 @@ Wraps `github.com/notnil/chess` with a UCI-oriented API for the arbiter.
 - [x] App shell: top nav (Tournaments, Engines, Settings), main pane, status bar
 - [x] Wails event subscription helpers — `frontend/src/lib/wails.ts`
 - [x] Dark theme default, light theme optional — `frontend/src/lib/theme.ts`, `styles/theme.css`
-- [ ] Accent color setting
+- [x] Accent color setting — six-color palette in Settings via `setAccent` (`frontend/src/lib/theme.ts`)
 
 ### Chessboard component
 

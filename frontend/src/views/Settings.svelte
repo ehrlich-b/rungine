@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { theme, setTheme } from '../lib/theme';
+  import { theme, setTheme, accent, setAccent, ACCENTS } from '../lib/theme';
   import { App } from '../lib/wails';
 
   let cpuFeatures = $state('');
@@ -28,6 +28,22 @@
         <button class:active={$theme === 'light'} onclick={() => setTheme('light')}>
           Light
         </button>
+      </div>
+    </div>
+    <div class="row">
+      <span class="label">Accent</span>
+      <div class="swatches" role="group" aria-label="Accent color">
+        {#each ACCENTS as a (a.id)}
+          <button
+            type="button"
+            class="swatch"
+            class:active={$accent === a.id}
+            style:--swatch={a.swatch}
+            aria-label={a.label}
+            title={a.label}
+            onclick={() => setAccent(a.id)}>
+          </button>
+        {/each}
       </div>
     </div>
   </div>
@@ -95,6 +111,30 @@
   .seg button.active {
     background: var(--surface-2);
     color: var(--text-primary);
+  }
+
+  .swatches {
+    display: flex;
+    gap: var(--space-sm);
+  }
+
+  .swatch {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--swatch);
+    border: 2px solid transparent;
+    padding: 0;
+    cursor: pointer;
+    transition: transform 0.1s ease;
+  }
+
+  .swatch:hover {
+    transform: scale(1.1);
+  }
+
+  .swatch.active {
+    border-color: var(--text-primary);
   }
 
   code {
