@@ -169,6 +169,9 @@ export namespace main {
 	    losses: number;
 	    games: number;
 	    points: number;
+	    elo: number;
+	    eloLo: number;
+	    eloHi: number;
 
 	    static createFrom(source: any = {}) {
 	        return new PlayerScoreRow(source);
@@ -182,6 +185,45 @@ export namespace main {
 	        this.losses = source["losses"];
 	        this.games = source["games"];
 	        this.points = source["points"];
+	        this.elo = source["elo"];
+	        this.eloLo = source["eloLo"];
+	        this.eloHi = source["eloHi"];
+	    }
+	}
+	export class CrosstableCell {
+	    wins: number;
+	    draws: number;
+	    losses: number;
+	    games: number;
+	    points: number;
+
+	    static createFrom(source: any = {}) {
+	        return new CrosstableCell(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.wins = source["wins"];
+	        this.draws = source["draws"];
+	        this.losses = source["losses"];
+	        this.games = source["games"];
+	        this.points = source["points"];
+	    }
+	}
+	export class CrosstableData {
+	    players: string[];
+	    cells: CrosstableCell[][];
+
+	    static createFrom(source: any = {}) {
+	        return new CrosstableData(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.players = source["players"] ?? [];
+	        this.cells = (source["cells"] ?? []).map((row: any[]) =>
+	            (row ?? []).map((c) => new CrosstableCell(c)),
+	        );
 	    }
 	}
 	export class TournamentSummary {
@@ -195,6 +237,7 @@ export namespace main {
 	    gamesPlayed: number;
 	    outcomes: GameRow[];
 	    standings: PlayerScoreRow[];
+	    crosstable: CrosstableData;
 
 	    static createFrom(source: any = {}) {
 	        return new TournamentSummary(source);
@@ -212,6 +255,7 @@ export namespace main {
 	        this.gamesPlayed = source["gamesPlayed"];
 	        this.outcomes = (source["outcomes"] ?? []).map((g: any) => new GameRow(g));
 	        this.standings = (source["standings"] ?? []).map((s: any) => new PlayerScoreRow(s));
+	        this.crosstable = new CrosstableData(source["crosstable"] ?? {});
 	    }
 	}
 

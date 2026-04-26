@@ -263,6 +263,8 @@
                     <th>D</th>
                     <th>L</th>
                     <th>Pts</th>
+                    <th>Elo</th>
+                    <th>± 95%</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -274,10 +276,52 @@
                       <td>{p.draws}</td>
                       <td>{p.losses}</td>
                       <td>{p.points.toFixed(1)}</td>
+                      <td>{p.elo > 0 ? '+' : ''}{p.elo.toFixed(0)}</td>
+                      <td class="muted">
+                        [{p.eloLo > 0 ? '+' : ''}{p.eloLo.toFixed(0)},
+                        {p.eloHi > 0 ? '+' : ''}{p.eloHi.toFixed(0)}]
+                      </td>
                     </tr>
                   {/each}
                 </tbody>
               </table>
+            {/if}
+
+            {#if summary.crosstable.players.length >= 3}
+              <h3>Crosstable</h3>
+              <div class="crosstable-wrap">
+                <table class="crosstable">
+                  <thead>
+                    <tr>
+                      <th></th>
+                      {#each summary.crosstable.players as p (p)}
+                        <th class="rot" title={p}>{p.slice(0, 8)}</th>
+                      {/each}
+                      <th>Pts</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {#each summary.crosstable.players as p, i (p)}
+                      <tr>
+                        <th class="row-name">{p}</th>
+                        {#each summary.crosstable.players as _, j}
+                          {@const cell = summary.crosstable.cells[i]?.[j]}
+                          {#if i === j}
+                            <td class="diag">—</td>
+                          {:else if !cell || cell.games === 0}
+                            <td class="muted">·</td>
+                          {:else}
+                            <td>{cell.points.toFixed(1)}/{cell.games}</td>
+                          {/if}
+                        {/each}
+                        <td class="row-total">
+                          {summary.standings.find((s) => s.name === p)?.points.toFixed(1) ?? '—'}
+                        </td>
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
+              </div>
             {/if}
 
             {#if summary.outcomes.length > 0}
@@ -604,6 +648,47 @@
 
   .standings th:nth-child(n + 2) {
     text-align: right;
+  }
+
+  .crosstable-wrap {
+    overflow-x: auto;
+  }
+
+  .crosstable {
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .crosstable th,
+  .crosstable td {
+    padding: 4px 8px;
+    text-align: center;
+    border: 1px solid var(--border);
+  }
+
+  .crosstable th.rot {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-weight: 500;
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    height: 60px;
+  }
+
+  .crosstable .row-name {
+    text-align: left;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .crosstable .row-total {
+    font-weight: 600;
+  }
+
+  .crosstable .diag {
+    background: var(--surface-2);
+    color: var(--text-muted);
   }
 
   .games {

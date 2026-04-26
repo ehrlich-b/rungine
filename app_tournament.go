@@ -88,6 +88,29 @@ type PlayerScoreRow struct {
 	Losses int     `json:"losses"`
 	Games  int     `json:"games"`
 	Points float64 `json:"points"`
+	// Elo is the iterative performance-rating fit (mean-anchored at 0).
+	Elo float64 `json:"elo"`
+	// EloLo and EloHi are the 95% normal-approximation interval endpoints
+	// of the rating delta from observed W/D/L.
+	EloLo float64 `json:"eloLo"`
+	EloHi float64 `json:"eloHi"`
+}
+
+// CrosstableCell is W/D/L between two players (i vs j).
+type CrosstableCell struct {
+	Wins   int     `json:"wins"`
+	Draws  int     `json:"draws"`
+	Losses int     `json:"losses"`
+	Games  int     `json:"games"`
+	Points float64 `json:"points"`
+}
+
+// CrosstableData is the head-to-head matrix in JSON-friendly form.
+// Players is the row/column order. Cells[i][j] is i's record against j;
+// Cells[i][i] is the empty diagonal cell.
+type CrosstableData struct {
+	Players []string             `json:"players"`
+	Cells   [][]CrosstableCell   `json:"cells"`
 }
 
 // TournamentSummary is the snapshot of a tournament's current state.
@@ -102,6 +125,7 @@ type TournamentSummary struct {
 	GamesPlayed int              `json:"gamesPlayed"`
 	Outcomes    []GameRow        `json:"outcomes"`
 	Standings   []PlayerScoreRow `json:"standings"`
+	Crosstable  CrosstableData   `json:"crosstable"`
 }
 
 type tournamentRun struct {
@@ -125,11 +149,14 @@ func (r *tournamentRun) snapshot() TournamentSummary {
 		rows = append(rows, gameOutcomeRow(o))
 	}
 	standings := tournament.BuildStandings(r.outcomes)
+	elos := tournament.EstimateElos(r.outcomes, "", 0)
 	psRows := make([]PlayerScoreRow, 0, len(standings.Players))
 	for _, p := range standings.Players {
+		lo, _, hi := tournament.EloInterval(p.Wins, p.Draws, p.Losses, 0.95)
 		psRows = append(psRows, PlayerScoreRow{
 			Name: p.Name, Wins: p.Wins, Draws: p.Draws,
 			Losses: p.Losses, Games: p.Games, Points: p.Points,
+			Elo: elos[p.Name], EloLo: lo, EloHi: hi,
 		})
 	}
 	return TournamentSummary{
@@ -137,7 +164,55 @@ func (r *tournamentRun) snapshot() TournamentSummary {
 		StartedAt: r.started, FinishedAt: r.finished,
 		GamesTotal: r.total, GamesPlayed: len(r.outcomes),
 		Outcomes: rows, Standings: psRows,
+		Crosstable: buildCrosstableData(r.outcomes),
 	}
+}
+
+func buildCrosstableData(outcomes []tournament.GameOutcome) CrosstableData {
+	ct := tournament.BuildCrosstable(outcomes)
+	if len(ct.Players) == 0 {
+		return CrosstableData{Players: []string{}, Cells: [][]CrosstableCell{}}
+	}
+	// Aggregate W/D/L from outcomes for each ordered pair.
+	idx := map[string]int{}
+	for i, p := range ct.Players {
+		idx[p] = i
+	}
+	n := len(ct.Players)
+	cells := make([][]CrosstableCell, n)
+	for i := range n {
+		cells[i] = make([]CrosstableCell, n)
+	}
+	for _, o := range outcomes {
+		if o.Err != nil || o.Result == nil {
+			continue
+		}
+		wi, ok1 := idx[o.Pairing.White.Name]
+		bi, ok2 := idx[o.Pairing.Black.Name]
+		if !ok1 || !ok2 {
+			continue
+		}
+		switch o.Result.Outcome {
+		case chess.WhiteWins:
+			cells[wi][bi].Wins++
+			cells[bi][wi].Losses++
+		case chess.BlackWins:
+			cells[bi][wi].Wins++
+			cells[wi][bi].Losses++
+		case chess.Drawn:
+			cells[wi][bi].Draws++
+			cells[bi][wi].Draws++
+		}
+		cells[wi][bi].Games++
+		cells[bi][wi].Games++
+	}
+	for i := range n {
+		for j := range n {
+			c := &cells[i][j]
+			c.Points = float64(c.Wins) + 0.5*float64(c.Draws)
+		}
+	}
+	return CrosstableData{Players: ct.Players, Cells: cells}
 }
 
 func gameOutcomeRow(o tournament.GameOutcome) GameRow {

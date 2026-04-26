@@ -237,10 +237,10 @@ The "world-class" half. TCEC-quality live broadcast.
 ### Live tournament dashboard
 
 - [x] Header: tournament name, status, progress (X/N games)
-- [x] Standings updating as games complete
-- [ ] Crosstable updates as games complete
+- [x] Standings updating as games complete (with ELO + 95% CI)
+- [x] Crosstable updates as games complete (rendered when 3+ engines)
 - [ ] Live games grid: see all in-progress games at once (mini-boards with move/eval)
-- [ ] Click into a game for full view
+- [x] Click into a game for full view
 
 ### Single-game live view
 
