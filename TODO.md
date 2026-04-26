@@ -133,14 +133,14 @@ Wraps `github.com/notnil/chess` with a UCI-oriented API for the arbiter.
 - [x] Resign adjudication (eval below threshold for N consecutive plies)
 - [x] Draw adjudication (eval near zero for N consecutive plies, after min ply)
 - [x] Capture per-ply move record (move, eval, depth, time used, clocks remaining) on `Result`
-- [ ] Stream move-by-move events for live view (Wails events; deferred until viewer scaffolds)
+- [x] Stream move-by-move events for live view (Wails events) — `tournament:gameStart`, `tournament:move`, `tournament:gameComplete`
 - [x] Produce final PGN with embedded `[%eval]` and `[%clk]` annotations
 
 ### Time controls
 
 - [x] Sudden death (`90+0`)
 - [x] Increment (`60+0.6`)
-- [ ] Moves + time (`40/15+0`) — `MovesPerPeriod` set on UCI but no clock reset between periods
+- [x] Moves + time (`40/15+0`) — clock bonus applied at period boundary, `movestogo` decrements within period
 - [x] Fixed depth (`d=N`) for testing
 - [x] Fixed nodes (`n=N`) for testing
 - [x] Fixed movetime (`mt=ms`) for testing — known issue: time forfeits unexpectedly under load with Stockfish 18, investigate

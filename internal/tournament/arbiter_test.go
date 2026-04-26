@@ -36,6 +36,8 @@ type scripted struct {
 
 	bestMoveCh chan uci.BestMove
 	infoCh     chan uci.AnalysisInfo
+
+	goParams []uci.GoParams // Go params from each call, in order
 }
 
 func newScripted(moves []string) *scripted {
@@ -63,6 +65,7 @@ func (m *scripted) SetPosition(fen string, moves []string) error {
 
 func (m *scripted) Go(params uci.GoParams) error {
 	m.mu.Lock()
+	m.goParams = append(m.goParams, params)
 	if m.goErr != nil {
 		err := m.goErr
 		m.mu.Unlock()
@@ -690,6 +693,76 @@ func TestArbiterAnnotatedPGNFromCustomFEN(t *testing.T) {
 		if !strings.Contains(pgn, want) {
 			t.Errorf("PGN missing %q\nfull PGN:\n%s", want, pgn)
 		}
+	}
+}
+
+// TestMovesPerPeriodResetAndMovesToGo verifies that:
+//  1. MovesToGo passed to engines decreases each move within a period and
+//     resets to MovesPerPeriod at the start of a new period.
+//  2. After a side completes MovesPerPeriod moves, their clock is bumped by
+//     another Initial allotment.
+func TestMovesPerPeriodResetAndMovesToGo(t *testing.T) {
+	// 40/15+0 schema, scaled down: 4 moves per period, 1s initial, 0 inc.
+	// Play 5 white moves and 4 black moves so white finishes a full period
+	// and starts a second.
+	whiteMoves := []string{"e2e4", "g1f3", "f1c4", "d2d3", "b1c3"}
+	blackMoves := []string{"e7e5", "b8c6", "g8f6", "d7d6"}
+	white := newScripted(whiteMoves)
+	black := newScripted(blackMoves)
+
+	arb, err := New(Config{
+		White: white, Black: black,
+		WhiteName: "W", BlackName: "B",
+		TimeControl: TimeControl{
+			Initial:        1 * time.Second,
+			MovesPerPeriod: 4,
+		},
+		MaxPlies: 9, // stop after white's 5th move
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	result, err := arb.Run(ctx)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if len(result.Moves) != 9 {
+		t.Fatalf("expected 9 plies played, got %d", len(result.Moves))
+	}
+
+	// White's MovesToGo across her 5 calls: 4, 3, 2, 1, then reset to 4.
+	wantWhite := []int{4, 3, 2, 1, 4}
+	if len(white.goParams) != len(wantWhite) {
+		t.Fatalf("white Go calls = %d, want %d", len(white.goParams), len(wantWhite))
+	}
+	for i, want := range wantWhite {
+		if got := white.goParams[i].MovesToGo; got != want {
+			t.Errorf("white Go[%d].MovesToGo = %d, want %d", i, got, want)
+		}
+	}
+
+	// Black completed exactly 4 moves: MovesToGo = 4, 3, 2, 1.
+	wantBlack := []int{4, 3, 2, 1}
+	if len(black.goParams) != len(wantBlack) {
+		t.Fatalf("black Go calls = %d, want %d", len(black.goParams), len(wantBlack))
+	}
+	for i, want := range wantBlack {
+		if got := black.goParams[i].MovesToGo; got != want {
+			t.Errorf("black Go[%d].MovesToGo = %d, want %d", i, got, want)
+		}
+	}
+
+	// White finished her 4th move => clock bumped by another Initial (1s).
+	// Black finished her 4th move on her last ply => same bump.
+	// Each move took ~milliseconds, so both clocks should be > Initial.
+	if result.WhiteClock <= 1*time.Second {
+		t.Errorf("white clock = %v, expected > 1s after period bonus", result.WhiteClock)
+	}
+	if result.BlackClock <= 1*time.Second {
+		t.Errorf("black clock = %v, expected > 1s after period bonus", result.BlackClock)
 	}
 }
 

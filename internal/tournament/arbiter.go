@@ -151,6 +151,10 @@ type Arbiter struct {
 	whiteClock time.Duration
 	blackClock time.Duration
 
+	// Per-period move counters for moves+time controls (0 in sudden death).
+	whiteMovesInPeriod int
+	blackMovesInPeriod int
+
 	startMoveNum int
 	startSide    chess.Side
 
@@ -253,7 +257,7 @@ func (a *Arbiter) Run(ctx context.Context) (*Result, error) {
 		side := a.game.SideToMove()
 		engine, name := a.engineFor(side)
 
-		params := a.buildGoParams()
+		params := a.buildGoParams(side)
 		deadline := a.moveDeadline(side)
 
 		moveStart := time.Now()
@@ -341,7 +345,7 @@ func (a *Arbiter) engineFor(side chess.Side) (Engine, string) {
 	return a.cfg.Black, a.cfg.BlackName
 }
 
-func (a *Arbiter) buildGoParams() uci.GoParams {
+func (a *Arbiter) buildGoParams(side chess.Side) uci.GoParams {
 	tc := a.cfg.TimeControl
 	switch {
 	case tc.FixedMovetime > 0:
@@ -351,12 +355,20 @@ func (a *Arbiter) buildGoParams() uci.GoParams {
 	case tc.FixedDepth > 0:
 		return uci.GoParams{Depth: tc.FixedDepth}
 	}
+	movesToGo := 0
+	if tc.MovesPerPeriod > 0 {
+		played := a.whiteMovesInPeriod
+		if side == chess.Black {
+			played = a.blackMovesInPeriod
+		}
+		movesToGo = tc.MovesPerPeriod - played
+	}
 	return uci.GoParams{
 		WhiteTime: a.whiteClock,
 		BlackTime: a.blackClock,
 		WhiteInc:  tc.Increment,
 		BlackInc:  tc.Increment,
-		MovesToGo: tc.MovesPerPeriod,
+		MovesToGo: movesToGo,
 	}
 }
 
@@ -379,15 +391,32 @@ func (a *Arbiter) moveDeadline(side chess.Side) time.Duration {
 
 func (a *Arbiter) tickClock(side chess.Side, elapsed time.Duration) {
 	tc := a.cfg.TimeControl
+	var clock *time.Duration
+	var movesInPeriod *int
 	if side == chess.White {
-		a.whiteClock -= elapsed
-		if a.whiteClock > 0 {
-			a.whiteClock += tc.Increment
-		}
+		clock = &a.whiteClock
+		movesInPeriod = &a.whiteMovesInPeriod
 	} else {
-		a.blackClock -= elapsed
-		if a.blackClock > 0 {
-			a.blackClock += tc.Increment
+		clock = &a.blackClock
+		movesInPeriod = &a.blackMovesInPeriod
+	}
+
+	*clock -= elapsed
+	if *clock > 0 {
+		*clock += tc.Increment
+	}
+
+	// Moves+time: when this side completes the Nth move of the period, add
+	// another Initial allotment to their clock and start a fresh period.
+	// Only credit if the side actually survived the move (clock > 0); a
+	// flagged engine still forfeits via clockExpired.
+	if tc.MovesPerPeriod > 0 {
+		*movesInPeriod++
+		if *movesInPeriod >= tc.MovesPerPeriod {
+			if *clock > 0 {
+				*clock += tc.Initial
+			}
+			*movesInPeriod = 0
 		}
 	}
 }
