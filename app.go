@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	_ "embed"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -221,6 +222,97 @@ func (a *App) UninstallEngine(engineID string) error {
 // GetCPUFeatures returns the detected CPU features.
 func (a *App) GetCPUFeatures() string {
 	return registry.DetectCPUFeatures().FeatureString()
+}
+
+// EngineOptionDef is a JSON-friendly view of registry.OptionDef where
+// the heterogeneous Default and Recommended values are stringified.
+type EngineOptionDef struct {
+	Name        string   `json:"name"`
+	Type        string   `json:"type"`
+	Default     string   `json:"default"`
+	Min         *int     `json:"min,omitempty"`
+	Max         *int     `json:"max,omitempty"`
+	Vars        []string `json:"vars,omitempty"`
+	Description string   `json:"description,omitempty"`
+	Recommended string   `json:"recommended,omitempty"`
+}
+
+// EngineOptionConfig describes the editable UCI options for an installed
+// engine: definitions sourced from the registry, plus the user's current
+// override values.
+type EngineOptionConfig struct {
+	Definitions []EngineOptionDef `json:"definitions"`
+	Values      map[string]string `json:"values"`
+}
+
+// GetEngineOptionConfig returns option definitions + current overrides
+// for an installed engine.
+func (a *App) GetEngineOptionConfig(engineID string) (EngineOptionConfig, error) {
+	cfg := EngineOptionConfig{
+		Definitions: []EngineOptionDef{},
+		Values:      map[string]string{},
+	}
+	if a.installer == nil {
+		return cfg, nil
+	}
+	installed, err := a.installer.GetInstalled(engineID)
+	if err != nil {
+		return cfg, err
+	}
+	if installed.OptionValues != nil {
+		cfg.Values = installed.OptionValues
+	}
+	def, err := a.registry.GetEngine(installed.RegistryID)
+	if err != nil {
+		return cfg, nil // No registry def: still let user edit blank.
+	}
+	for name, opt := range def.Options {
+		cfg.Definitions = append(cfg.Definitions, EngineOptionDef{
+			Name:        name,
+			Type:        opt.Type,
+			Default:     anyToString(opt.Default),
+			Min:         opt.Min,
+			Max:         opt.Max,
+			Description: opt.Description,
+			Recommended: anyToString(opt.Recommended),
+		})
+	}
+	return cfg, nil
+}
+
+// SetEngineOptionConfig persists per-engine UCI option overrides.
+func (a *App) SetEngineOptionConfig(engineID string, options map[string]string) error {
+	if a.installer == nil {
+		return nil
+	}
+	return a.installer.UpdateOptions(engineID, options)
+}
+
+func anyToString(v interface{}) string {
+	if v == nil {
+		return ""
+	}
+	switch x := v.(type) {
+	case string:
+		return x
+	case bool:
+		if x {
+			return "true"
+		}
+		return "false"
+	case int:
+		return fmt.Sprintf("%d", x)
+	case int64:
+		return fmt.Sprintf("%d", x)
+	case float64:
+		// TOML often decodes integers as float64.
+		if x == float64(int64(x)) {
+			return fmt.Sprintf("%d", int64(x))
+		}
+		return fmt.Sprintf("%g", x)
+	default:
+		return fmt.Sprintf("%v", x)
+	}
 }
 
 // StartTournament kicks off a tournament asynchronously.

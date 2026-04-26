@@ -6,6 +6,8 @@ import {main} from '../models';
 
 export function GetCPUFeatures():Promise<string>;
 
+export function GetEngineOptionConfig(arg1:string):Promise<main.EngineOptionConfig>;
+
 export function GetEngineOptions(arg1:string):Promise<Record<string, uci.UCIOption>>;
 
 export function GetGameDetail(arg1:string,arg2:number):Promise<main.GameDetail>;
@@ -27,6 +29,8 @@ export function RegisterEngine(arg1:string,arg2:string):Promise<void>;
 export function SetAnalysisThrottle(arg1:number):Promise<void>;
 
 export function SetEngineOption(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function SetEngineOptionConfig(arg1:string,arg2:Record<string,string>):Promise<void>;
 
 export function StartAnalysis(arg1:main.AnalysisParams):Promise<void>;
 

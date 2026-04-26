@@ -594,6 +594,27 @@ func (i *Installer) GetInstalled(engineID string) (*InstalledEngine, error) {
 	return &eng, nil
 }
 
+// UpdateOptions persists per-engine UCI option overrides for an installed engine.
+// Empty-valued keys are removed.
+func (i *Installer) UpdateOptions(engineID string, options map[string]string) error {
+	engine, err := i.GetInstalled(engineID)
+	if err != nil {
+		return err
+	}
+	if engine.OptionValues == nil {
+		engine.OptionValues = map[string]string{}
+	}
+	for k, v := range options {
+		if v == "" {
+			delete(engine.OptionValues, k)
+		} else {
+			engine.OptionValues[k] = v
+		}
+	}
+	configPath := filepath.Join(i.installDir, engineID, "config.toml")
+	return i.saveConfig(configPath, engine)
+}
+
 // Uninstall removes an installed engine.
 func (i *Installer) Uninstall(engineID string) error {
 	engineDir := filepath.Join(i.installDir, engineID)

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { App, on } from '../lib/wails';
+  import EngineOptionsEditor from '../components/EngineOptionsEditor.svelte';
   import type { registry } from '../../wailsjs/go/models';
 
   type Available = registry.EngineInfo;
@@ -11,6 +12,7 @@
   let busyId = $state<string | null>(null);
   let error = $state<string | null>(null);
   let progress = $state<Record<string, string>>({});
+  let configuring = $state<string | null>(null);
 
   async function refresh() {
     error = null;
@@ -96,13 +98,23 @@
   {:else}
     <div class="grid">
       {#each installed as eng (eng.ID)}
-        <article class="card">
+        <article class="card" class:expanded={configuring === eng.ID}>
           <div class="card-head">
             <strong>{eng.Name}</strong>
             <span class="muted">{eng.Version}</span>
           </div>
           <div class="path muted">{eng.BinaryPath}</div>
+          {#if eng.OptionValues && Object.keys(eng.OptionValues).length > 0}
+            <div class="overrides muted small">
+              {Object.keys(eng.OptionValues).length} option override(s)
+            </div>
+          {/if}
           <div class="actions">
+            <button
+              disabled={busyId !== null}
+              onclick={() => (configuring = configuring === eng.ID ? null : eng.ID)}>
+              {configuring === eng.ID ? 'Close' : 'Configure'}
+            </button>
             <button
               class="danger"
               disabled={busyId !== null}
@@ -110,6 +122,9 @@
               Uninstall
             </button>
           </div>
+          {#if configuring === eng.ID}
+            <EngineOptionsEditor engineId={eng.ID} onSaved={refresh} />
+          {/if}
         </article>
       {/each}
     </div>
@@ -207,6 +222,18 @@
 
   .card.dim {
     opacity: 0.7;
+  }
+
+  .card.expanded {
+    grid-column: 1 / -1;
+  }
+
+  .overrides {
+    font-style: italic;
+  }
+
+  .small {
+    font-size: 0.7rem;
   }
 
   .card-head {

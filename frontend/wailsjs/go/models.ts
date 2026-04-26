@@ -22,6 +22,46 @@ export namespace main {
 	        this.moveTime = source["moveTime"];
 	    }
 	}
+	export class EngineOptionDef {
+	    name: string;
+	    type: string;
+	    default: string;
+	    min?: number;
+	    max?: number;
+	    vars?: string[];
+	    description?: string;
+	    recommended?: string;
+
+	    static createFrom(source: any = {}) {
+	        return new EngineOptionDef(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.type = source["type"];
+	        this.default = source["default"];
+	        this.min = source["min"];
+	        this.max = source["max"];
+	        this.vars = source["vars"];
+	        this.description = source["description"];
+	        this.recommended = source["recommended"];
+	    }
+	}
+	export class EngineOptionConfig {
+	    definitions: EngineOptionDef[];
+	    values: Record<string, string>;
+
+	    static createFrom(source: any = {}) {
+	        return new EngineOptionConfig(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.definitions = (source["definitions"] ?? []).map((d: any) => new EngineOptionDef(d));
+	        this.values = source["values"] ?? {};
+	    }
+	}
 	export class TournamentEngineRef {
 	    id: string;
 	    name?: string;

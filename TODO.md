@@ -273,7 +273,7 @@ The "world-class" half. TCEC-quality live broadcast.
 - [x] List engines from registry (installed vs available) — `frontend/src/views/Engines.svelte`
 - [x] One-click install (progress shown as text; graphical bar still TODO)
 - [x] CPU feature display (StatusBar + Settings)
-- [ ] Configure UCI options (spin / check / combo / string editors)
+- [x] Configure UCI options (spin / check / combo / string / button editors)
 - [ ] Engine profiles (analysis, tournament, quick)
 - [x] Remove installed engine
 - [ ] Add custom engine (browse for binary, run UCI to discover options)

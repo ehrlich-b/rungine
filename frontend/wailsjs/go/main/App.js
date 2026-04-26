@@ -6,6 +6,10 @@ export function GetCPUFeatures() {
   return window['go']['main']['App']['GetCPUFeatures']();
 }
 
+export function GetEngineOptionConfig(arg1) {
+  return window['go']['main']['App']['GetEngineOptionConfig'](arg1);
+}
+
 export function GetEngineOptions(arg1) {
   return window['go']['main']['App']['GetEngineOptions'](arg1);
 }
@@ -48,6 +52,10 @@ export function SetAnalysisThrottle(arg1) {
 
 export function SetEngineOption(arg1, arg2, arg3) {
   return window['go']['main']['App']['SetEngineOption'](arg1, arg2, arg3);
+}
+
+export function SetEngineOptionConfig(arg1, arg2) {
+  return window['go']['main']['App']['SetEngineOptionConfig'](arg1, arg2);
 }
 
 export function StartAnalysis(arg1) {
