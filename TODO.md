@@ -247,7 +247,7 @@ The "world-class" half. TCEC-quality live broadcast.
 - [x] Big board with current position
 - [x] Move list with engine eval annotations
 - [ ] Per-engine panel: name, depth, eval, nodes, NPS, PV (live, clickable)
-- [ ] Live eval graph (line chart, white POV, depth markers)
+- [x] Eval graph (white POV, click-to-jump, arrow-key nav)
 - [ ] Clock display (both sides, ticking)
 - [ ] PV-on-board overlay (arrows for engine's planned line)
 

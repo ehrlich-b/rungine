@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Board from './Board.svelte';
+  import EvalGraph from './EvalGraph.svelte';
   import { STARTING_FEN } from '../lib/chess';
   import type { main } from '../../wailsjs/go/models';
 
@@ -157,6 +158,13 @@
             <span class="muted">{(currentMove.elapsedMs / 1000).toFixed(1)}s</span>
           {/if}
         </div>
+      {/if}
+      {#if detail.moves.length > 0}
+        <EvalGraph
+          moves={detail.moves}
+          {currentPly}
+          onJump={(p) => go(p)}
+          height={70} />
       {/if}
     </div>
 
