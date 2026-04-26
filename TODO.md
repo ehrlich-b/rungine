@@ -232,7 +232,7 @@ The "world-class" half. TCEC-quality live broadcast.
 - [x] Time control picker — movetime ms only; T+I and depth/nodes still TODO
 - [ ] Opening source: random startpos / PGN file / Polyglot book / specific FEN
 - [x] Concurrency setting
-- [ ] Save tournament config presets
+- [x] Save tournament config presets — localStorage-backed preset list in setup form
 
 ### Live tournament dashboard
 

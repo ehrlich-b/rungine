@@ -31,6 +31,88 @@
   let sprtAlpha = $state(0.05);
   let sprtBeta = $state(0.05);
 
+  type Preset = {
+    name: string;
+    slots: Slot[];
+    format: Format;
+    games: number;
+    movetimeMs: number;
+    concurrency: number;
+    pairMode: boolean;
+    sprtEnabled: boolean;
+    sprtElo0: number;
+    sprtElo1: number;
+    sprtAlpha: number;
+    sprtBeta: number;
+  };
+
+  const PRESETS_KEY = 'rungine.tournamentPresets';
+  let presets = $state<Preset[]>(loadPresets());
+  let presetName = $state('');
+
+  function loadPresets(): Preset[] {
+    try {
+      const raw = localStorage.getItem(PRESETS_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? (parsed as Preset[]) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function savePresets() {
+    try {
+      localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
+    } catch {
+      // localStorage full or disabled — silently drop.
+    }
+  }
+
+  function savePreset() {
+    const name = presetName.trim();
+    if (!name) return;
+    const preset: Preset = {
+      name,
+      slots: slots.map((s) => ({ ...s, showOptions: false })),
+      format,
+      games,
+      movetimeMs,
+      concurrency,
+      pairMode,
+      sprtEnabled,
+      sprtElo0,
+      sprtElo1,
+      sprtAlpha,
+      sprtBeta,
+    };
+    const idx = presets.findIndex((p) => p.name === name);
+    if (idx >= 0) presets[idx] = preset;
+    else presets = [...presets, preset];
+    savePresets();
+    presetName = '';
+  }
+
+  function applyPreset(p: Preset) {
+    slots = p.slots.map((s) => ({ ...s }));
+    format = p.format;
+    games = p.games;
+    movetimeMs = p.movetimeMs;
+    concurrency = p.concurrency;
+    pairMode = p.pairMode;
+    sprtEnabled = p.sprtEnabled;
+    sprtElo0 = p.sprtElo0;
+    sprtElo1 = p.sprtElo1;
+    sprtAlpha = p.sprtAlpha;
+    sprtBeta = p.sprtBeta;
+    presetName = p.name;
+  }
+
+  function deletePreset(name: string) {
+    presets = presets.filter((p) => p.name !== name);
+    savePresets();
+  }
+
   let starting = $state(false);
   let error = $state<string | null>(null);
   let activeTournamentId = $state<string | null>(null);
@@ -403,6 +485,48 @@
             {/if}
           </div>
         {/if}
+
+        <div class="field">
+          <span class="label">Presets</span>
+          <div class="presets-row">
+            <input
+              type="text"
+              class="preset-name"
+              placeholder="Preset name"
+              bind:value={presetName}
+              spellcheck="false" />
+            <button
+              type="button"
+              class="preset-save"
+              onclick={savePreset}
+              disabled={presetName.trim() === ''}>
+              Save
+            </button>
+          </div>
+          {#if presets.length > 0}
+            <div class="presets-list">
+              {#each presets as p (p.name)}
+                <div class="preset-item">
+                  <button
+                    type="button"
+                    class="preset-apply"
+                    onclick={() => applyPreset(p)}
+                    title="Load this preset">
+                    {p.name}
+                  </button>
+                  <span class="preset-meta muted small">
+                    {p.format} · {p.slots.length} slots
+                  </span>
+                  <button
+                    type="button"
+                    class="preset-delete"
+                    onclick={() => deletePreset(p.name)}
+                    title="Delete preset">×</button>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
 
         <button type="submit" class="primary" disabled={!canStart()}>
           {starting ? 'Starting…' : 'Start tournament'}
@@ -1144,6 +1268,70 @@
 
   .sprt-grid {
     margin-top: var(--space-sm);
+  }
+
+  .presets-row {
+    display: flex;
+    gap: var(--space-sm);
+    align-items: center;
+  }
+
+  .preset-name {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .preset-save {
+    padding: 4px 12px;
+  }
+
+  .presets-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    margin-top: var(--space-sm);
+  }
+
+  .preset-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-1);
+  }
+
+  .preset-apply {
+    flex: 1;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    padding: 4px 0;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+
+  .preset-apply:hover {
+    color: var(--accent);
+  }
+
+  .preset-meta {
+    margin-left: auto;
+  }
+
+  .preset-delete {
+    background: transparent;
+    border: 0;
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 0 4px;
+  }
+
+  .preset-delete:hover {
+    color: var(--danger);
   }
 
   .sprt-panel {
