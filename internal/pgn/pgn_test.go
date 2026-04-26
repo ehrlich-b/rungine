@@ -354,6 +354,133 @@ func TestNewGame(t *testing.T) {
 	}
 }
 
+func TestParseEmbeddedAnnotations(t *testing.T) {
+	input := `[Event "Annotated"]
+[Result "*"]
+
+1. e4 {[%eval +0.42] [%clk 0:01:30.500]} e5 {[%eval -0.10] [%clk 0:01:29.250]} 2. Nf3 {[%eval #5]} Nc6 {[%eval #-3] [%clk 0:01:00.000]} *`
+
+	parser := NewParser(strings.NewReader(input))
+	game, err := parser.ParseGame()
+	if err != nil {
+		t.Fatalf("ParseGame() error: %v", err)
+	}
+
+	type want struct {
+		move    string
+		cp      *int
+		mate    *int
+		clk     *int64
+		comment string
+	}
+	intp := func(v int) *int { return &v }
+	clk := func(v int64) *int64 { return &v }
+
+	cases := []want{
+		{"e4", intp(42), nil, clk(90500), ""},
+		{"e5", intp(-10), nil, clk(89250), ""},
+		{"Nf3", nil, intp(5), nil, ""},
+		{"Nc6", nil, intp(-3), clk(60000), ""},
+	}
+
+	node := game.Moves.Next
+	for _, w := range cases {
+		if node == nil {
+			t.Fatalf("ran out of moves before %s", w.move)
+		}
+		if node.Move != w.move {
+			t.Fatalf("got move %q, want %q", node.Move, w.move)
+		}
+		if !equalIntPtr(node.EvalCp, w.cp) {
+			t.Errorf("%s EvalCp = %v, want %v", w.move, derefInt(node.EvalCp), derefInt(w.cp))
+		}
+		if !equalIntPtr(node.EvalMate, w.mate) {
+			t.Errorf("%s EvalMate = %v, want %v", w.move, derefInt(node.EvalMate), derefInt(w.mate))
+		}
+		if !equalInt64Ptr(node.ClkMs, w.clk) {
+			t.Errorf("%s ClkMs = %v, want %v", w.move, derefInt64(node.ClkMs), derefInt64(w.clk))
+		}
+		if node.Comment != w.comment {
+			t.Errorf("%s Comment = %q, want %q", w.move, node.Comment, w.comment)
+		}
+		node = node.Next
+	}
+}
+
+func TestParseAnnotationsResidualAndUnknown(t *testing.T) {
+	input := `[Event "Mixed"]
+[Result "*"]
+
+1. e4 {Best by test [%eval +0.20] [%clk 0:00:30.000] [%emt 0:00:01]} *`
+
+	parser := NewParser(strings.NewReader(input))
+	game, err := parser.ParseGame()
+	if err != nil {
+		t.Fatalf("ParseGame() error: %v", err)
+	}
+
+	node := game.Moves.Next
+	if node == nil || node.Move != "e4" {
+		t.Fatal("expected e4")
+	}
+	if node.EvalCp == nil || *node.EvalCp != 20 {
+		t.Errorf("EvalCp = %v, want 20", node.EvalCp)
+	}
+	if node.ClkMs == nil || *node.ClkMs != 30_000 {
+		t.Errorf("ClkMs = %v, want 30000", node.ClkMs)
+	}
+	// [%emt ...] is unknown; should remain in residual alongside the prose.
+	if !strings.Contains(node.Comment, "Best by test") || !strings.Contains(node.Comment, "[%emt 0:00:01]") {
+		t.Errorf("residual comment = %q (expected prose + unknown tag preserved)", node.Comment)
+	}
+}
+
+func TestParseAnnotationsAbsentLeavesNil(t *testing.T) {
+	input := `[Result "*"]
+
+1. e4 {Just a note} *`
+
+	game, err := NewParser(strings.NewReader(input)).ParseGame()
+	if err != nil {
+		t.Fatalf("ParseGame() error: %v", err)
+	}
+	node := game.Moves.Next
+	if node.EvalCp != nil || node.EvalMate != nil || node.ClkMs != nil {
+		t.Errorf("expected all annotation fields nil, got cp=%v mate=%v clk=%v", node.EvalCp, node.EvalMate, node.ClkMs)
+	}
+	if node.Comment != "Just a note" {
+		t.Errorf("Comment = %q, want %q", node.Comment, "Just a note")
+	}
+}
+
+func equalIntPtr(a, b *int) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
+}
+
+func equalInt64Ptr(a, b *int64) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
+}
+
+func derefInt(p *int) any {
+	if p == nil {
+		return nil
+	}
+	return *p
+}
+
+func derefInt64(p *int64) any {
+	if p == nil {
+		return nil
+	}
+	return *p
+}
+
 func TestAddMove(t *testing.T) {
 	game := NewGame()
 

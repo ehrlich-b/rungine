@@ -88,7 +88,7 @@ Status tracker. Check items as completed.
 - [x] Write PGN from game tree
 - [x] Unit tests for PGN parsing edge cases
 - [x] Embedded annotations: write `[%eval ...]` and `[%clk ...]` per ply (writer in `internal/tournament/arbiter.go`)
-- [ ] Embedded annotations: read `[%eval ...]` and `[%clk ...]` per ply
+- [x] Embedded annotations: read `[%eval ...]` and `[%clk ...]` per ply
 
 ---
 

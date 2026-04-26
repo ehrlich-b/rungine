@@ -46,12 +46,17 @@ type Game struct {
 // MoveNode represents a node in the move tree.
 type MoveNode struct {
 	Move       string      // SAN notation (e.g., "e4", "Nxf7+", "O-O-O")
-	Comment    string      // Text annotation after the move
+	Comment    string      // Text annotation after the move (with [%eval]/[%clk] stripped)
 	NAGs       []int       // Numeric Annotation Glyphs ($1, $2, etc.)
 	Variations []*MoveNode // Alternative continuations
 	Next       *MoveNode   // Main line continuation
 	Parent     *MoveNode   // For navigation back
 	Ply        int         // Half-move number (0 = before first move)
+
+	// Embedded annotations parsed from the comment.
+	EvalCp   *int   // Centipawn evaluation, white's POV (nil if absent or mate)
+	EvalMate *int   // Mate-in-N, white's POV; positive = white mates (nil if absent or cp)
+	ClkMs    *int64 // Clock remaining for the side that just moved, in milliseconds (nil if absent)
 }
 
 // TokenType represents PGN token types.
@@ -414,7 +419,17 @@ func (p *Parser) ParseGame() (*Game, error) {
 
 		case TokenComment:
 			if current != root {
-				current.Comment = tok.Value
+				residual, evalCp, evalMate, clkMs := extractAnnotations(tok.Value)
+				current.Comment = residual
+				if evalCp != nil {
+					current.EvalCp = evalCp
+				}
+				if evalMate != nil {
+					current.EvalMate = evalMate
+				}
+				if clkMs != nil {
+					current.ClkMs = clkMs
+				}
 			}
 
 		case TokenNAG:
@@ -472,6 +487,127 @@ func parseTag(s string) (string, string) {
 	name := parts[0]
 	value := strings.Trim(parts[1], "\"")
 	return name, value
+}
+
+// extractAnnotations pulls [%eval ...] and [%clk ...] out of a comment body
+// and returns the residual text plus parsed values. Annotations the writer
+// emits look like "[%eval +0.42]", "[%eval #5]", "[%clk 0:01:30.500]".
+// Unrecognized [%key ...] tags are left in the residual untouched.
+func extractAnnotations(comment string) (residual string, evalCp *int, evalMate *int, clkMs *int64) {
+	var out strings.Builder
+	i := 0
+	for i < len(comment) {
+		// Look for "[%"
+		if comment[i] == '[' && i+1 < len(comment) && comment[i+1] == '%' {
+			end := strings.IndexByte(comment[i:], ']')
+			if end < 0 {
+				out.WriteString(comment[i:])
+				break
+			}
+			tag := comment[i+2 : i+end] // skip "[%"
+			parts := strings.SplitN(strings.TrimSpace(tag), " ", 2)
+			if len(parts) == 2 {
+				key, value := parts[0], strings.TrimSpace(parts[1])
+				consumed := false
+				switch key {
+				case "eval":
+					if cp, mate, ok := parseEvalAnnotation(value); ok {
+						if mate != nil {
+							evalMate = mate
+						} else if cp != nil {
+							evalCp = cp
+						}
+						consumed = true
+					}
+				case "clk":
+					if ms, ok := parseClockAnnotation(value); ok {
+						clkMs = &ms
+						consumed = true
+					}
+				}
+				if consumed {
+					i += end + 1
+					// Eat one trailing space so we don't leave double spaces behind.
+					if i < len(comment) && comment[i] == ' ' {
+						i++
+					}
+					continue
+				}
+			}
+		}
+		out.WriteByte(comment[i])
+		i++
+	}
+	return strings.TrimSpace(out.String()), evalCp, evalMate, clkMs
+}
+
+// parseEvalAnnotation reads a value like "+0.42", "-0.10", "#5", "#-3".
+// Returns (cp, mate, ok); exactly one of cp / mate is non-nil on success.
+func parseEvalAnnotation(s string) (*int, *int, bool) {
+	if s == "" {
+		return nil, nil, false
+	}
+	if s[0] == '#' {
+		n, err := strconv.Atoi(s[1:])
+		if err != nil {
+			return nil, nil, false
+		}
+		return nil, &n, true
+	}
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return nil, nil, false
+	}
+	cp := int(f * 100)
+	if f >= 0 && f*100-float64(cp) > 0.5 {
+		cp++
+	} else if f < 0 && float64(cp)-f*100 > 0.5 {
+		cp--
+	}
+	return &cp, nil, true
+}
+
+// parseClockAnnotation reads "H:MM:SS" or "H:MM:SS.mmm" and returns total ms.
+func parseClockAnnotation(s string) (int64, bool) {
+	parts := strings.Split(s, ":")
+	if len(parts) != 3 {
+		return 0, false
+	}
+	h, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil || h < 0 {
+		return 0, false
+	}
+	m, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil || m < 0 || m > 59 {
+		return 0, false
+	}
+	secStr := parts[2]
+	var ms int64
+	if dot := strings.IndexByte(secStr, '.'); dot >= 0 {
+		s, err := strconv.ParseInt(secStr[:dot], 10, 64)
+		if err != nil || s < 0 || s > 59 {
+			return 0, false
+		}
+		frac := secStr[dot+1:]
+		if len(frac) > 3 {
+			frac = frac[:3]
+		}
+		for len(frac) < 3 {
+			frac += "0"
+		}
+		fr, err := strconv.ParseInt(frac, 10, 64)
+		if err != nil {
+			return 0, false
+		}
+		ms = (h*3600+m*60+s)*1000 + fr
+	} else {
+		s, err := strconv.ParseInt(secStr, 10, 64)
+		if err != nil || s < 0 || s > 59 {
+			return 0, false
+		}
+		ms = (h*3600 + m*60 + s) * 1000
+	}
+	return ms, true
 }
 
 // parseNAG converts NAG string to integer.
