@@ -34,6 +34,9 @@ type TournamentSpec struct {
 	NodesLimit    int64                 `json:"nodesLimit"`
 	TcInitialMs   int                   `json:"tcInitialMs"`
 	TcIncrementMs int                   `json:"tcIncrementMs"`
+	// StartFEN, if non-empty, sets the starting position for every game.
+	// Use to force unbalanced openings (Chess960-style FENs work too).
+	StartFEN      string                `json:"startFen"`
 	Event         string                `json:"event"`
 	PairMode      bool                  `json:"pairMode"`
 	MaxPlies      int                   `json:"maxPlies"`
@@ -440,6 +443,17 @@ func (m *TournamentManager) Start(spec TournamentSpec) (string, error) {
 	}
 	if len(pairings) == 0 {
 		return "", errors.New("no pairings generated")
+	}
+	if startFen := strings.TrimSpace(spec.StartFEN); startFen != "" {
+		// Validate once so a bad FEN fails fast at start time, not in the
+		// arbiter goroutine after engines spin up.
+		if _, err := chess.FromFEN(startFen); err != nil {
+			return "", fmt.Errorf("invalid start FEN: %w", err)
+		}
+		for i := range pairings {
+			pairings[i].StartFEN = startFen
+			pairings[i].StartMoves = nil
+		}
 	}
 
 	concurrency := spec.Concurrency

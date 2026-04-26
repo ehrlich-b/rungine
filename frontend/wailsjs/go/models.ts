@@ -292,6 +292,7 @@ export namespace main {
 	    nodesLimit: number;
 	    tcInitialMs: number;
 	    tcIncrementMs: number;
+	    startFen: string;
 	    event: string;
 	    pairMode: boolean;
 	    maxPlies: number;
@@ -320,6 +321,7 @@ export namespace main {
 	        this.nodesLimit = source["nodesLimit"];
 	        this.tcInitialMs = source["tcInitialMs"];
 	        this.tcIncrementMs = source["tcIncrementMs"];
+	        this.startFen = source["startFen"];
 	        this.event = source["event"];
 	        this.pairMode = source["pairMode"];
 	        this.maxPlies = source["maxPlies"];

@@ -38,6 +38,8 @@
   let sprtAlpha = $state(0.05);
   let sprtBeta = $state(0.05);
 
+  let startFen = $state('');
+
   type Preset = {
     name: string;
     slots: Slot[];
@@ -269,6 +271,7 @@
         sprtElo1: format === 'match' && sprtEnabled ? sprtElo1 : 0,
         sprtAlpha: format === 'match' && sprtEnabled ? sprtAlpha : 0,
         sprtBeta: format === 'match' && sprtEnabled ? sprtBeta : 0,
+        startFen: startFen.trim(),
       } as any);
       activeTournamentId = id;
       summary = await App.GetTournament(id);
@@ -524,6 +527,16 @@
               </label>
             {/if}
           </div>
+        </div>
+
+        <div class="field">
+          <span class="label">Start position (FEN)</span>
+          <input
+            type="text"
+            class="fen-input"
+            placeholder="empty = standard startpos"
+            bind:value={startFen}
+            spellcheck="false" />
         </div>
 
         {#if format === 'match'}
@@ -1341,6 +1354,11 @@
 
   .sprt-grid {
     margin-top: var(--space-sm);
+  }
+
+  .fen-input {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 0.85rem;
   }
 
   .presets-row {
