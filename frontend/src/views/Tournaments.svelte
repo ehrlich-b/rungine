@@ -40,6 +40,18 @@
 
   let startFen = $state('');
 
+  // Adjudication knobs. Defaults match Cute Chess's recommended values
+  // for engine-engine matches; backend disables a knob when its threshold/
+  // moves count is zero.
+  let resignEnabled = $state(true);
+  let resignScore = $state(900);
+  let resignMoves = $state(4);
+  let drawAdjEnabled = $state(true);
+  let drawScore = $state(10);
+  let drawMoves = $state(8);
+  let drawMinPly = $state(60);
+  let maxPlies = $state(400);
+
   type Preset = {
     name: string;
     slots: Slot[];
@@ -58,6 +70,16 @@
     sprtElo1: number;
     sprtAlpha: number;
     sprtBeta: number;
+    // Adjudication. Optional so older saved presets still load.
+    resignEnabled?: boolean;
+    resignScore?: number;
+    resignMoves?: number;
+    drawAdjEnabled?: boolean;
+    drawScore?: number;
+    drawMoves?: number;
+    drawMinPly?: number;
+    maxPlies?: number;
+    startFen?: string;
   };
 
   const PRESETS_KEY = 'rungine.tournamentPresets';
@@ -104,6 +126,15 @@
       sprtElo1,
       sprtAlpha,
       sprtBeta,
+      resignEnabled,
+      resignScore,
+      resignMoves,
+      drawAdjEnabled,
+      drawScore,
+      drawMoves,
+      drawMinPly,
+      maxPlies,
+      startFen,
     };
     const idx = presets.findIndex((p) => p.name === name);
     if (idx >= 0) presets[idx] = preset;
@@ -129,6 +160,15 @@
     sprtElo1 = p.sprtElo1;
     sprtAlpha = p.sprtAlpha;
     sprtBeta = p.sprtBeta;
+    resignEnabled = p.resignEnabled ?? true;
+    resignScore = p.resignScore ?? 900;
+    resignMoves = p.resignMoves ?? 4;
+    drawAdjEnabled = p.drawAdjEnabled ?? true;
+    drawScore = p.drawScore ?? 10;
+    drawMoves = p.drawMoves ?? 8;
+    drawMinPly = p.drawMinPly ?? 60;
+    maxPlies = p.maxPlies ?? 400;
+    startFen = p.startFen ?? '';
     presetName = p.name;
   }
 
@@ -261,12 +301,12 @@
         tcIncrementMs: tcMode === 'tplus' ? Math.round(tcIncrementSec * 1000) : 0,
         event: 'Rungine GUI',
         pairMode,
-        maxPlies: 400,
-        resignScore: 0,
-        resignMoves: 4,
-        drawScore: -1,
-        drawMoves: 8,
-        drawMinPly: 60,
+        maxPlies,
+        resignScore: resignEnabled ? resignScore : 0,
+        resignMoves: resignEnabled ? resignMoves : 0,
+        drawScore: drawAdjEnabled ? drawScore : -1,
+        drawMoves: drawAdjEnabled ? drawMoves : 0,
+        drawMinPly: drawAdjEnabled ? drawMinPly : 0,
         sprtElo0: format === 'match' && sprtEnabled ? sprtElo0 : 0,
         sprtElo1: format === 'match' && sprtEnabled ? sprtElo1 : 0,
         sprtAlpha: format === 'match' && sprtEnabled ? sprtAlpha : 0,
@@ -339,6 +379,20 @@
       sprtAlpha = sp.sprtAlpha ?? sprtAlpha;
       sprtBeta = sp.sprtBeta ?? sprtBeta;
     }
+    // Adjudication. Backend sentinels: resignScore<=0 disables resign,
+    // drawScore<0 (or drawMoves<=0) disables draw adjudication.
+    resignEnabled = (sp.resignScore ?? 0) > 0 && (sp.resignMoves ?? 0) > 0;
+    if (resignEnabled) {
+      resignScore = sp.resignScore;
+      resignMoves = sp.resignMoves;
+    }
+    drawAdjEnabled = (sp.drawScore ?? -1) >= 0 && (sp.drawMoves ?? 0) > 0;
+    if (drawAdjEnabled) {
+      drawScore = sp.drawScore;
+      drawMoves = sp.drawMoves;
+      drawMinPly = sp.drawMinPly ?? 60;
+    }
+    maxPlies = sp.maxPlies && sp.maxPlies > 0 ? sp.maxPlies : 400;
     slots = (sp.engines ?? []).map((e: any, i: number) => ({
       slotId: `s${Date.now().toString(36)}${i}`,
       engineId: e.id,
@@ -612,6 +666,85 @@
             placeholder="empty = standard startpos"
             bind:value={startFen}
             spellcheck="false" />
+        </div>
+
+        <div class="field">
+          <span class="label">Adjudication</span>
+
+          <label class="check inline">
+            <input type="checkbox" bind:checked={resignEnabled} />
+            <span>Resign when losing</span>
+          </label>
+          {#if resignEnabled}
+            <div class="grid">
+              <label>
+                <span class="label">Threshold (cp)</span>
+                <input
+                  type="number"
+                  min="100"
+                  max="10000"
+                  step="50"
+                  bind:value={resignScore}
+                  aria-label="Resign threshold (cp)" />
+              </label>
+              <label>
+                <span class="label">Consecutive moves</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  bind:value={resignMoves}
+                  aria-label="Resign consecutive moves" />
+              </label>
+            </div>
+          {/if}
+
+          <label class="check inline">
+            <input type="checkbox" bind:checked={drawAdjEnabled} />
+            <span>Adjudicate quiet draws</span>
+          </label>
+          {#if drawAdjEnabled}
+            <div class="grid adj-grid-3">
+              <label>
+                <span class="label">|Eval| ≤ (cp)</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  bind:value={drawScore}
+                  aria-label="Draw eval threshold (cp)" />
+              </label>
+              <label>
+                <span class="label">Plies</span>
+                <input
+                  type="number"
+                  min="2"
+                  max="40"
+                  bind:value={drawMoves}
+                  aria-label="Draw consecutive plies" />
+              </label>
+              <label>
+                <span class="label">After ply</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="200"
+                  bind:value={drawMinPly}
+                  aria-label="Draw min ply" />
+              </label>
+            </div>
+          {/if}
+
+          <label>
+            <span class="label">Max plies (auto-draw cap)</span>
+            <input
+              type="number"
+              min="40"
+              max="2000"
+              step="10"
+              bind:value={maxPlies}
+              aria-label="Max plies" />
+          </label>
         </div>
 
         {#if format === 'match'}
@@ -1194,6 +1327,10 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: var(--space-sm);
+  }
+
+  .grid.adj-grid-3 {
+    grid-template-columns: 1fr 1fr 1fr;
   }
 
   .grid label {

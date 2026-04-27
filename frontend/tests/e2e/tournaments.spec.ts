@@ -113,6 +113,69 @@ test('per-slot UCI option overrides are sent to the backend', async ({ page }) =
   expect(calls[0].engines[1].options).toEqual({ Hash: '512', Threads: '4' });
 });
 
+test('adjudication defaults are sent in the tournament spec', async ({ page }) => {
+  await setupMock(page, { installed: twoEngines });
+  await page.goto('/');
+
+  await page.getByRole('button', { name: /\+\s*SF-A/ }).click();
+  await page.getByRole('button', { name: /\+\s*SF-B/ }).click();
+  await page.getByRole('button', { name: 'Start tournament' }).click();
+
+  const calls = await page.evaluate(() => window.__rungineMock.state.startTournamentCalls);
+  expect(calls).toHaveLength(1);
+  expect(calls[0].resignScore).toBe(900);
+  expect(calls[0].resignMoves).toBe(4);
+  expect(calls[0].drawScore).toBe(10);
+  expect(calls[0].drawMoves).toBe(8);
+  expect(calls[0].drawMinPly).toBe(60);
+  expect(calls[0].maxPlies).toBe(400);
+});
+
+test('unchecking adjudication boxes sends backend "off" sentinels', async ({ page }) => {
+  await setupMock(page, { installed: twoEngines });
+  await page.goto('/');
+
+  await page.getByRole('button', { name: /\+\s*SF-A/ }).click();
+  await page.getByRole('button', { name: /\+\s*SF-B/ }).click();
+
+  await page.getByLabel('Resign when losing').uncheck();
+  await page.getByLabel('Adjudicate quiet draws').uncheck();
+
+  await page.getByRole('button', { name: 'Start tournament' }).click();
+
+  const calls = await page.evaluate(() => window.__rungineMock.state.startTournamentCalls);
+  expect(calls[0].resignScore).toBe(0);
+  expect(calls[0].resignMoves).toBe(0);
+  expect(calls[0].drawScore).toBe(-1);
+  expect(calls[0].drawMoves).toBe(0);
+  expect(calls[0].drawMinPly).toBe(0);
+});
+
+test('custom adjudication thresholds round-trip through the form', async ({ page }) => {
+  await setupMock(page, { installed: twoEngines });
+  await page.goto('/');
+
+  await page.getByRole('button', { name: /\+\s*SF-A/ }).click();
+  await page.getByRole('button', { name: /\+\s*SF-B/ }).click();
+
+  await page.getByLabel('Resign threshold (cp)').fill('600');
+  await page.getByLabel('Resign consecutive moves').fill('6');
+  await page.getByLabel('Draw eval threshold (cp)').fill('5');
+  await page.getByLabel('Draw consecutive plies').fill('12');
+  await page.getByLabel('Draw min ply').fill('40');
+  await page.getByLabel('Max plies').fill('300');
+
+  await page.getByRole('button', { name: 'Start tournament' }).click();
+
+  const calls = await page.evaluate(() => window.__rungineMock.state.startTournamentCalls);
+  expect(calls[0].resignScore).toBe(600);
+  expect(calls[0].resignMoves).toBe(6);
+  expect(calls[0].drawScore).toBe(5);
+  expect(calls[0].drawMoves).toBe(12);
+  expect(calls[0].drawMinPly).toBe(40);
+  expect(calls[0].maxPlies).toBe(300);
+});
+
 test('starting a tournament shows a running dashboard with progress', async ({ page }) => {
   await setupMock(page, { installed: twoEngines });
   await page.goto('/');
@@ -123,7 +186,7 @@ test('starting a tournament shows a running dashboard with progress', async ({ p
   await page.getByRole('button', { name: 'Start tournament' }).click();
 
   await expect(page.getByText(/Tournament t1/)).toBeVisible();
-  await expect(page.locator('.status-running')).toContainText('running');
+  await expect(page.locator('.status-running').first()).toContainText('running');
   await expect(page.locator('.progress-text')).toContainText('0 / 4 games');
 });
 
