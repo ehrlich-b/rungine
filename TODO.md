@@ -394,7 +394,7 @@ Concrete suspects from the audit:
 ### Loose ends (pre-existing, low priority)
 - [ ] e2e fixture fix for `ListEngineProfiles`/`ApplyEngineProfile` is applied but **uncommitted** (`frontend/tests/e2e/fixtures.ts`) — commit it
 - [ ] CLI SPRT shows no live LLR (uses `NewSPRTStopper`, prints only on terminal decision); could switch to `NewSPRTStopperWithProgress`
-- [ ] `go.mod`: `modernc.org/sqlite` marked `// indirect` but imported directly — `go mod tidy` fixes it
+- [x] `go.mod`: `modernc.org/sqlite` promoted to a direct dependency via `go mod tidy`
 
 ---
 

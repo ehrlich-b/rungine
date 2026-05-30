@@ -14,10 +14,6 @@ export function DeleteTournament(arg1) {
   return window['go']['main']['App']['DeleteTournament'](arg1);
 }
 
-export function ListEngineProfiles(arg1) {
-  return window['go']['main']['App']['ListEngineProfiles'](arg1);
-}
-
 export function GetCPUFeatures() {
   return window['go']['main']['App']['GetCPUFeatures']();
 }
@@ -42,10 +38,6 @@ export function GetTournamentPGN(arg1) {
   return window['go']['main']['App']['GetTournamentPGN'](arg1);
 }
 
-export function LiveGames(arg1) {
-  return window['go']['main']['App']['LiveGames'](arg1);
-}
-
 export function InstallEngine(arg1) {
   return window['go']['main']['App']['InstallEngine'](arg1);
 }
@@ -54,8 +46,8 @@ export function ListAvailableEngines() {
   return window['go']['main']['App']['ListAvailableEngines']();
 }
 
-export function PickEngineBinary() {
-  return window['go']['main']['App']['PickEngineBinary']();
+export function ListEngineProfiles(arg1) {
+  return window['go']['main']['App']['ListEngineProfiles'](arg1);
 }
 
 export function ListEngines() {
@@ -68,6 +60,14 @@ export function ListInstalledEngines() {
 
 export function ListTournaments() {
   return window['go']['main']['App']['ListTournaments']();
+}
+
+export function LiveGames(arg1) {
+  return window['go']['main']['App']['LiveGames'](arg1);
+}
+
+export function PickEngineBinary() {
+  return window['go']['main']['App']['PickEngineBinary']();
 }
 
 export function RegisterEngine(arg1, arg2) {

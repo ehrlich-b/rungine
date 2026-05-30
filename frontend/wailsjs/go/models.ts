@@ -74,20 +74,6 @@ export namespace main {
 		    return a;
 		}
 	}
-	export class EngineProfile {
-	    name: string;
-	    values: Record<string, string>;
-
-	    static createFrom(source: any = {}) {
-	        return new EngineProfile(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.name = source["name"];
-	        this.values = source["values"];
-	    }
-	}
 	export class EngineOptionDef {
 	    name: string;
 	    type: string;
@@ -147,6 +133,20 @@ export namespace main {
 		}
 	}
 	
+	export class EngineProfile {
+	    name: string;
+	    values: Record<string, string>;
+	
+	    static createFrom(source: any = {}) {
+	        return new EngineProfile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.values = source["values"];
+	    }
+	}
 	export class MoveDetail {
 	    ply: number;
 	    side: string;
@@ -159,11 +159,11 @@ export namespace main {
 	    elapsedMs: number;
 	    clockAfterMs: number;
 	    check?: boolean;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new MoveDetail(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.ply = source["ply"];
@@ -192,11 +192,11 @@ export namespace main {
 	    startFen: string;
 	    pgn?: string;
 	    moves: MoveDetail[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new GameDetail(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.gameNumber = source["gameNumber"];
@@ -230,6 +230,32 @@ export namespace main {
 		    }
 		    return a;
 		}
+	}
+	export class GameRow {
+	    gameNumber: number;
+	    round: string;
+	    white: string;
+	    black: string;
+	    outcome: string;
+	    reason: string;
+	    plies: number;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GameRow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.gameNumber = source["gameNumber"];
+	        this.round = source["round"];
+	        this.white = source["white"];
+	        this.black = source["black"];
+	        this.outcome = source["outcome"];
+	        this.reason = source["reason"];
+	        this.plies = source["plies"];
+	        this.error = source["error"];
+	    }
 	}
 	export class LiveGameSnapshot {
 	    gameNumber: number;
@@ -267,32 +293,6 @@ export namespace main {
 	        this.blackMs = source["blackMs"];
 	    }
 	}
-	export class GameRow {
-	    gameNumber: number;
-	    round: string;
-	    white: string;
-	    black: string;
-	    outcome: string;
-	    reason: string;
-	    plies: number;
-	    error?: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new GameRow(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.gameNumber = source["gameNumber"];
-	        this.round = source["round"];
-	        this.white = source["white"];
-	        this.black = source["black"];
-	        this.outcome = source["outcome"];
-	        this.reason = source["reason"];
-	        this.plies = source["plies"];
-	        this.error = source["error"];
-	    }
-	}
 	
 	export class PlayerScoreRow {
 	    name: string;
@@ -320,6 +320,30 @@ export namespace main {
 	        this.elo = source["elo"];
 	        this.eloLo = source["eloLo"];
 	        this.eloHi = source["eloHi"];
+	    }
+	}
+	export class SprtState {
+	    llr: number;
+	    lowerBound: number;
+	    upperBound: number;
+	    decision: string;
+	    wins: number;
+	    draws: number;
+	    losses: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SprtState(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.llr = source["llr"];
+	        this.lowerBound = source["lowerBound"];
+	        this.upperBound = source["upperBound"];
+	        this.decision = source["decision"];
+	        this.wins = source["wins"];
+	        this.draws = source["draws"];
+	        this.losses = source["losses"];
 	    }
 	}
 	export class TournamentEngineRef {
@@ -361,11 +385,11 @@ export namespace main {
 	    sprtElo1: number;
 	    sprtAlpha: number;
 	    sprtBeta: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new TournamentSpec(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.format = source["format"];
@@ -410,30 +434,6 @@ export namespace main {
 		    return a;
 		}
 	}
-	export class SprtState {
-	    llr: number;
-	    lowerBound: number;
-	    upperBound: number;
-	    decision: string;
-	    wins: number;
-	    draws: number;
-	    losses: number;
-
-	    static createFrom(source: any = {}) {
-	        return new SprtState(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.llr = source["llr"];
-	        this.lowerBound = source["lowerBound"];
-	        this.upperBound = source["upperBound"];
-	        this.decision = source["decision"];
-	        this.wins = source["wins"];
-	        this.draws = source["draws"];
-	        this.losses = source["losses"];
-	    }
-	}
 	export class TournamentSummary {
 	    id: string;
 	    spec: TournamentSpec;
@@ -449,11 +449,11 @@ export namespace main {
 	    standings: PlayerScoreRow[];
 	    crosstable: CrosstableData;
 	    sprt?: SprtState;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new TournamentSummary(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
