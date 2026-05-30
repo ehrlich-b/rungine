@@ -340,13 +340,15 @@ one-shot.
 - [x] Fixed latent eval-POV bug: `GameView` move-list / move-info evals were shown raw (mover-POV) — a black-favoured move read as good-for-white. Now normalized via `whitePov`, matching the eval graph (which already flipped)
 
 ### 12.1 Analysis board — the headline (`views/Analyze.svelte`)
-Today it is bare: board + FEN field + engine checkboxes + text PV panels (`Analyze.svelte:173-231`); no arrows, no interaction.
-- [ ] PV arrows on the board from each engine's `analysis:info` PV (pattern: `GameView.svelte:201-217`); top line = solid accent arrow, secondary lines faded
+**Slice 1 (done):** the bare panels are replaced with a Lichess-style board.
+- [x] PV arrows on the board from the primary engine's lines — top line solid accent, secondary lines faded (`uciToArrow`)
+- [x] Multi-PV: set `MultiPV=3` per engine before analysis; render N ranked lines (eval / depth / PV). Required a backend fix — `emitThrottled` now keys the 20Hz gate per `(engine, MultiPV)` (`manager.go`), else lines 2/3 were dropped
+- [x] Eval bar (white POV) + large eval number tied to the primary engine's best line
+- [x] Lichess layout: board + eval bar left; ranked engine lines right
+**Slice 2 (remaining — needs a backend `ApplyMove` binding):**
 - [ ] Make moves on the board (click/drag) to explore a line; build a local move tree; re-issue `position` + analysis per move
-- [ ] Multi-PV: set `MultiPV=3`, render N ranked lines (eval / depth / PV) like Lichess ceval
-- [ ] Eval bar + large eval number tied to the best line
-- [ ] Lichess layout: board+evalbar left; engine lines + move list + FEN/PGN load right
-- [ ] Keyboard nav within the explored line (reuse GameView ← → Home End)
+- [ ] Move list in the right rail; keyboard nav within the explored line (reuse GameView ← → Home End)
+- [ ] PV lines show SAN, not raw UCI (needs a `fen + uciMoves → SAN[]` helper; throttle-friendly)
 
 ### 12.2 Pre-canned games (none exist today — UI has no sample data)
 - [ ] Bundle a few PGNs as frontend assets (famous games and/or `~/repos/ngn/the_game.pgn`, `games.pgn`)

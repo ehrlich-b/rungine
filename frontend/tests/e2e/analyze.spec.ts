@@ -63,10 +63,10 @@ test('analysis info events update the engine panels', async ({ page }) => {
     });
   });
 
-  await expect(page.getByText('+0.42')).toBeVisible();
+  await expect(page.locator('.big-eval')).toHaveText('+0.42');
   await expect(page.getByText('depth 18/22')).toBeVisible();
   await expect(page.getByText('1.5M nodes')).toBeVisible();
-  await expect(page.getByText('e2e4 e7e5 g1f3')).toBeVisible();
+  await expect(page.locator('.line-pv')).toHaveText('e2e4 e7e5 g1f3');
 });
 
 test('stop button calls StopAnalysis with selected engines', async ({ page }) => {

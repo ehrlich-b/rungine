@@ -226,7 +226,10 @@ func (m *EngineManager) streamAnalysis(engine *Engine) {
 // emitThrottled sends analysis info to the callback, throttled per engine.
 func (m *EngineManager) emitThrottled(info AnalysisInfo) {
 	m.throttleMu.Lock()
-	last, exists := m.lastEmit[info.EngineID]
+	// Throttle per (engine, MultiPV line) so concurrent multipv lines at the
+	// same depth don't clobber each other through a single per-engine gate.
+	key := fmt.Sprintf("%s:%d", info.EngineID, info.MultiPV)
+	last, exists := m.lastEmit[key]
 	now := time.Now()
 
 	// Always emit if it's a significant update (bestmove comes through differently,
@@ -237,7 +240,7 @@ func (m *EngineManager) emitThrottled(info AnalysisInfo) {
 		len(info.PV) == 0 // Status updates without PV
 
 	if shouldEmit {
-		m.lastEmit[info.EngineID] = now
+		m.lastEmit[key] = now
 	}
 	m.throttleMu.Unlock()
 
