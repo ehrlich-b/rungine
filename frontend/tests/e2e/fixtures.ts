@@ -101,6 +101,7 @@ export type RungineMockState = {
   available: AvailableEngineMock[];
   tournaments: TournamentSummaryMock[];
   gameDetails: Record<string, GameDetailMock>;
+  liveGames: any[];
   cpuFeatures: string;
   optionConfig: EngineOptionConfigMock;
   startTournamentCalls: any[];
@@ -116,6 +117,7 @@ export const defaultMockState: RungineMockState = {
   available: [],
   tournaments: [],
   gameDetails: {},
+  liveGames: [],
   cpuFeatures: 'AVX2,BMI2',
   optionConfig: { definitions: [], values: {} },
   startTournamentCalls: [],
@@ -188,9 +190,12 @@ export async function setupMock(page: Page, overrides: Partial<RungineMockState>
           GetCPUFeatures: () => Promise.resolve(state.cpuFeatures),
           GetEngineOptions: () => Promise.resolve({}),
           GetEngineOptionConfig: () => Promise.resolve(state.optionConfig),
+          ListEngineProfiles: () => Promise.resolve([]),
+          ApplyEngineProfile: () => Promise.resolve({}),
           GetTournament: (id: string) =>
             Promise.resolve(state.tournaments.find((t) => t.id === id) ?? null),
           GetTournamentPGN: () => Promise.resolve(''),
+          LiveGames: () => Promise.resolve(state.liveGames),
           GetGameDetail: (tid: string, num: number) =>
             Promise.resolve(state.gameDetails[gameKey(tid, num)] ?? null),
           ListAvailableEngines: () => Promise.resolve(state.available),

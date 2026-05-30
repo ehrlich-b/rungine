@@ -466,3 +466,12 @@ func (a *App) GetTournamentPGN(tournamentID string) (string, error) {
 	}
 	return a.tournaments.GetTournamentPGN(tournamentID)
 }
+
+// LiveGames returns snapshots of all currently-running games in a
+// tournament so the GUI can seed its live grid on mount.
+func (a *App) LiveGames(tournamentID string) ([]LiveGameSnapshot, error) {
+	if a.tournaments == nil {
+		return nil, nil
+	}
+	return a.tournaments.LiveGames(tournamentID)
+}

@@ -42,6 +42,10 @@ export function GetTournamentPGN(arg1) {
   return window['go']['main']['App']['GetTournamentPGN'](arg1);
 }
 
+export function LiveGames(arg1) {
+  return window['go']['main']['App']['LiveGames'](arg1);
+}
+
 export function InstallEngine(arg1) {
   return window['go']['main']['App']['InstallEngine'](arg1);
 }

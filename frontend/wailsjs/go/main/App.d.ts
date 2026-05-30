@@ -24,6 +24,8 @@ export function GetTournament(arg1:string):Promise<main.TournamentSummary>;
 
 export function GetTournamentPGN(arg1:string):Promise<string>;
 
+export function LiveGames(arg1:string):Promise<Array<main.LiveGameSnapshot>>;
+
 export function InstallEngine(arg1:string):Promise<void>;
 
 export function ListAvailableEngines():Promise<Array<registry.EngineInfo>>;

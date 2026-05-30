@@ -2,7 +2,7 @@
   import { onDestroy } from 'svelte';
   import Board from './Board.svelte';
   import { STARTING_FEN } from '../lib/chess';
-  import { on } from '../lib/wails';
+  import { on, App } from '../lib/wails';
 
   type Props = {
     tournamentId: string | null;
@@ -41,10 +41,47 @@
     games = {};
   }
 
+  function snapshotToLiveGame(s: any): LiveGame {
+    return {
+      gameNumber: s.gameNumber,
+      white: s.white,
+      black: s.black,
+      fen: s.fen || STARTING_FEN,
+      ply: s.ply ?? 0,
+      lastMove: s.lastMove || null,
+      lastSan: s.lastSan || null,
+      evalCp: s.evalCp ?? null,
+      evalMate: s.evalMate ?? null,
+      done: false,
+      result: '*',
+      whiteMs: s.whiteMs ?? null,
+      blackMs: s.blackMs ?? null,
+      sideToMove: s.sideToMove === 'b' ? 'b' : 'w',
+      lastTickEpoch: Date.now(),
+    };
+  }
+
   $effect(() => {
-    // Reset when tournament changes
-    void tournamentId;
+    // Reset when the tournament changes, then backfill currently-running
+    // games. gameStart events fire before this view subscribes, so without
+    // this seed a low-concurrency match would show an empty grid for the
+    // whole game.
+    const tid = tournamentId;
     reset();
+    if (!tid) return;
+    let cancelled = false;
+    App.LiveGames(tid)
+      .then((snap) => {
+        if (cancelled || tid !== tournamentId) return;
+        const seeded: Record<number, LiveGame> = {};
+        for (const s of snap ?? []) seeded[s.gameNumber] = snapshotToLiveGame(s);
+        // Live events received in the meantime are fresher; keep them.
+        games = { ...seeded, ...games };
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   });
 
   unsubs.push(
@@ -75,9 +112,9 @@
       if (!p || p.tournamentId !== tournamentId) return;
       const existing = games[p.gameNumber];
       if (!existing) return;
-      // p.side is the side that just moved; clockAfterMs is its remaining time.
+      // p.side is the side that just moved ("w"/"b"); clockAfterMs is its remaining time.
       const clock = typeof p.clockAfterMs === 'number' && p.clockAfterMs > 0 ? p.clockAfterMs : null;
-      const movedSide: 'w' | 'b' = p.side === 'black' ? 'b' : 'w';
+      const movedSide: 'w' | 'b' = p.side === 'b' ? 'b' : 'w';
       const next: LiveGame = {
         ...existing,
         fen: p.fen,

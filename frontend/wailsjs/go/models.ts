@@ -231,6 +231,42 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class LiveGameSnapshot {
+	    gameNumber: number;
+	    round: string;
+	    white: string;
+	    black: string;
+	    fen: string;
+	    ply: number;
+	    lastMove: string;
+	    lastSan: string;
+	    sideToMove: string;
+	    evalCp?: number;
+	    evalMate?: number;
+	    whiteMs?: number;
+	    blackMs?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new LiveGameSnapshot(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.gameNumber = source["gameNumber"];
+	        this.round = source["round"];
+	        this.white = source["white"];
+	        this.black = source["black"];
+	        this.fen = source["fen"];
+	        this.ply = source["ply"];
+	        this.lastMove = source["lastMove"];
+	        this.lastSan = source["lastSan"];
+	        this.sideToMove = source["sideToMove"];
+	        this.evalCp = source["evalCp"];
+	        this.evalMate = source["evalMate"];
+	        this.whiteMs = source["whiteMs"];
+	        this.blackMs = source["blackMs"];
+	    }
+	}
 	export class GameRow {
 	    gameNumber: number;
 	    round: string;

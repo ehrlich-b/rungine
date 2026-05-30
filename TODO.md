@@ -323,6 +323,80 @@ Scoped to tournament storage, not generic game library.
 
 ---
 
+## Phase 12: Lichess-grade UX overhaul (CURRENT FOCUS)
+
+Driven by hands-on testing 2026-05-30. Several Phase 7–8 items are technically
+"done" but not good enough to actually use; this phase upgrades them.
+**North star: clone the Lichess analysis board** — board + vertical eval bar on
+the left; a right rail of ranked engine PV lines, the move list, and PGN/FEN
+load; first/prev/next/last + flip controls under the board; eval graph along the
+bottom. Land these incrementally and verify each in the running app — do not
+one-shot.
+
+### 12.0 Shared primitives
+- [ ] Write a short target-layout spec (sections + what goes where) here or in DESIGN.md
+- [ ] Eval bar component (vertical, white-advantage fill), shared by Analyze + GameView; drive from best `score` (cp/mate → clamped fill)
+- [ ] `uciToArrow(uci, color)` helper in `lib/chess.ts`; reuse Board's existing `arrows` prop everywhere (`Board.svelte:10-19,100-122,217-252`)
+
+### 12.1 Analysis board — the headline (`views/Analyze.svelte`)
+Today it is bare: board + FEN field + engine checkboxes + text PV panels (`Analyze.svelte:173-231`); no arrows, no interaction.
+- [ ] PV arrows on the board from each engine's `analysis:info` PV (pattern: `GameView.svelte:201-217`); top line = solid accent arrow, secondary lines faded
+- [ ] Make moves on the board (click/drag) to explore a line; build a local move tree; re-issue `position` + analysis per move
+- [ ] Multi-PV: set `MultiPV=3`, render N ranked lines (eval / depth / PV) like Lichess ceval
+- [ ] Eval bar + large eval number tied to the best line
+- [ ] Lichess layout: board+evalbar left; engine lines + move list + FEN/PGN load right
+- [ ] Keyboard nav within the explored line (reuse GameView ← → Home End)
+
+### 12.2 Pre-canned games (none exist today — UI has no sample data)
+- [ ] Bundle a few PGNs as frontend assets (famous games and/or `~/repos/ngn/the_game.pgn`, `games.pgn`)
+- [ ] "Open game": paste-PGN textarea + starter gallery; parse via backend PGN parser; replay in `GameView` (board + eval graph + move list already there)
+- [ ] Add nav entry (`lib/router.ts` + `Nav.svelte`) or fold a "load game" affordance into Analyze
+
+### 12.3 Tournament live view — "goes to running but I can't see it" (FIXED)
+**Root cause (confirmed by inspection):** a subscribe-after-emit race. `StartTournament`
+launches the scheduler immediately, which fires `tournament:gameStart` within ms — *before*
+the frontend finishes its `GetTournament`/`ListTournaments` round-trips and mounts `LiveGames`
+to subscribe. The initial `gameStart` events are lost, and because the `move` handler did
+`if (!existing) return`, every subsequent move was dropped too, so a low-concurrency match
+showed an empty grid for the whole game (only the separate dashboard `gameComplete` path
+recorded the finished game — hence "I only see it after it's done"). Event keys matched fine;
+the casing hypothesis was wrong.
+- [x] Confirmed `gameStart`/`move` fire and `emit` reaches the UI (same path `gameComplete` uses)
+- [x] Verified event payload keys match (`fen/ply/uci/san/side/evalCp/evalMate/clockAfterMs`) — ruled out as the cause
+- [x] **Fix: snapshot backfill.** New `App.LiveGames(id)` binding returns running games (`app_tournament.go` `LiveGames`/`liveGameSnapshot`); `LiveGames.svelte` `$effect` seeds the grid from it on mount and on `tournamentId` change, so it no longer depends on catching `gameStart`. Also fixes navigating into an already-running tournament
+- [x] Fixed a second bug: move handler read `p.side === 'black'` but `chess.Side` serializes to `"w"`/`"b"`, so `movedSide` was always `'w'` → wrong side-to-move indicator and black clock never updated. Now `p.side === 'b'`
+- [x] Live-games grid populates on `gameStart` and updates every `move` (was already correct for post-subscription events; backfill covers the rest)
+- [x] Open a running game into `GameView` and stream it live — already wired: `openGame`→`GetGameDetail` returns live detail via `buildLiveGameDetail`, and `tournamentId` is passed so GameView subscribes
+- [x] Regression test: `tournaments.spec.ts` "live games grid backfills from snapshot without a gameStart event"
+
+### 12.4 Tournament setup declutter ("horrendously busy")
+Form crams everything at once (`Tournaments.svelte:509-828`): engine slots, format, TC, adjudication, SPRT, per-slot options, openings, presets.
+- [ ] Progressive disclosure: essentials visible (engines, format, time control, Start); collapse Advanced (adjudication, SPRT, per-engine UCI options, openings, max-plies)
+- [ ] Regroup into clear sections, consistent spacing, fix cramped/overlapping controls
+
+### 12.5 Layout / overlap pass (global — "overlapping all over the place")
+Concrete suspects from the audit:
+- [ ] Nested scroll containers: dashboard `overflow:hidden` wrapping tables with `overflow-x:auto` (`Tournaments.svelte:~1110-1116`)
+- [ ] Absolute-positioned progress text overlapping the bar (`Tournaments.svelte:~1417`)
+- [ ] Fixed `max-height:540px` move list, not viewport-aware (`GameView.svelte:~582`)
+- [ ] LiveGames grid has no overflow handling (`LiveGames.svelte:~221`); check-glow gradient oversized on 28px miniboards (`Board.svelte:319-330`)
+- [ ] Board arrows clipped by `.grid overflow:hidden` (`Board.svelte:~273`)
+- [ ] Walk every view at narrow widths; kill horizontal scroll / overlap
+
+### 12.6 Board polish (folds in open Phase 7 items)
+- [ ] SVG piece set (Cburnett/Merida) replacing Unicode glyphs — biggest visual gap vs Lichess
+- [ ] Circle annotations (square markers)
+
+### 12.7 Engines
+- [x] Install **Blunder 8.0.0** (~2674 CCRL) and **ngn 0.1.0** (~1600) alongside Stockfish 17 / 16.1 — binaries copied to `~/.rungine/engines/custom-{blunder-800,ngn}/` with hand-written `config.toml`; verified playing through the arbiter (Blunder beat ngn 1-0, 75 plies). Other Blunder ladder rungs (v5.0.0–v7.4.0, ~2080–2532 CCRL) sit in `~/repos/ngn/opponents/` if a wider field is wanted.
+
+### Loose ends (pre-existing, low priority)
+- [ ] e2e fixture fix for `ListEngineProfiles`/`ApplyEngineProfile` is applied but **uncommitted** (`frontend/tests/e2e/fixtures.ts`) — commit it
+- [ ] CLI SPRT shows no live LLR (uses `NewSPRTStopper`, prints only on terminal decision); could switch to `NewSPRTStopperWithProgress`
+- [ ] `go.mod`: `modernc.org/sqlite` marked `// indirect` but imported directly — `go mod tidy` fixes it
+
+---
+
 ## Backlog (post-1.0)
 
 Not on the critical path to "world-class tournament viewer and runner".
