@@ -1532,5 +1532,44 @@ See `registry/engines.toml` in repository for full examples.
 
 ---
 
-*Document version: 1.0*
-*Last updated: 2024-01-15*
+## Appendix: Analysis & Game View Layout (Phase 12)
+
+Target layout, cloning the Lichess analysis board. Both the Analyze view and
+the single-game view share these primitives so they look and behave alike.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ header: engine name(s) · FEN/PGN load · flip · close          │
+├───────────────┬──────────────────────────────────────────────┤
+│ ┌──┐ ┌──────┐ │  engine lines (MultiPV, ranked):              │
+│ │EB│ │      │ │   1. +0.42  d24  e4 e5 Nf3 Nc6 ...            │
+│ │  │ │board │ │   2. +0.31  d23  d4 d5 ...                    │
+│ │  │ │      │ │   3. +0.10  d23  c4 ...                       │
+│ └──┘ └──────┘ │  ─────────────────────────────────────────   │
+│  ◀ ▶ ⏮ ⏭  F   │  move list (SAN pairs, click to jump)         │
+│  scrubber     │                                               │
+├───────────────┴──────────────────────────────────────────────┤
+│ eval graph (white POV, click-to-jump) — spans the bottom      │
+└──────────────────────────────────────────────────────────────┘
+```
+
+Shared primitives (`frontend/src/`):
+- **EvalBar** (`components/EvalBar.svelte`) — vertical white-advantage fill
+  beside the board. Takes **white-POV** `cp`/`mate`; logistic fill clamped to
+  `[0.02, 0.98]`; flips with the board.
+- **`uciToArrow(uci, color?, weight?)`** (`lib/chess.ts`) — builds the `Arrow`
+  shape Board's `arrows` prop consumes. Top engine line = solid accent, lower
+  lines faded.
+- **`whitePov(value, side)`** (`lib/chess.ts`) — engines report from the
+  side-to-move POV; normalize to white before display (eval bar, move evals,
+  eval graph all agree on this).
+
+Conventions:
+- Centipawn/mate stored on each move are **mover-POV** (raw UCI); every
+  consumer normalizes via `whitePov` using the move's `side`.
+- Board square size 56px in the full view, 28px for tournament mini-boards.
+
+---
+
+*Document version: 1.1*
+*Last updated: 2026-05-30*

@@ -67,6 +67,35 @@ export function parseFEN(fen: string): Position {
   };
 }
 
+/** A board arrow overlay: engine PV, user annotation, etc. Consumed by Board's `arrows` prop. */
+export type Arrow = {
+  /** Source square in UCI notation, e.g. "e2". */
+  from: string;
+  /** Destination square in UCI notation, e.g. "e4". */
+  to: string;
+  /** CSS color string. Defaults to the accent color in Board. */
+  color?: string;
+  /** Multiplier on the default stroke width. */
+  weight?: number;
+};
+
+/** Convert a UCI move (e.g. "e2e4", "e7e8q") to a board Arrow. Returns null if malformed. */
+export function uciToArrow(uci: string, color?: string, weight?: number): Arrow | null {
+  if (!uci || uci.length < 4) return null;
+  const arrow: Arrow = { from: uci.slice(0, 2), to: uci.slice(2, 4) };
+  if (color) arrow.color = color;
+  if (weight !== undefined) arrow.weight = weight;
+  return arrow;
+}
+
+/**
+ * Normalize an engine score to white's POV. UCI engines report from the
+ * side-to-move's POV, so a black move's score must be negated.
+ */
+export function whitePov(value: number, side: 'w' | 'b'): number {
+  return side === 'b' ? -value : value;
+}
+
 /** Convert a UCI square (e.g. "e4") to {file, rank} indices, where file 0=a, rank 0=8. */
 export function squareToCoords(sq: string): { file: number; rank: number } {
   const file = sq.charCodeAt(0) - 'a'.charCodeAt(0);

@@ -5,18 +5,8 @@
     pieceGlyph,
     coordsToSquare,
     type Position,
+    type Arrow,
   } from '../lib/chess';
-
-  type Arrow = {
-    /** Source square in UCI notation, e.g. "e2". */
-    from: string;
-    /** Destination square in UCI notation, e.g. "e4". */
-    to: string;
-    /** CSS color string. Defaults to the accent color. */
-    color?: string;
-    /** Multiplier on the default stroke width. */
-    weight?: number;
-  };
 
   type Props = {
     fen?: string;

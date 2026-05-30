@@ -334,9 +334,10 @@ bottom. Land these incrementally and verify each in the running app — do not
 one-shot.
 
 ### 12.0 Shared primitives
-- [ ] Write a short target-layout spec (sections + what goes where) here or in DESIGN.md
-- [ ] Eval bar component (vertical, white-advantage fill), shared by Analyze + GameView; drive from best `score` (cp/mate → clamped fill)
-- [ ] `uciToArrow(uci, color)` helper in `lib/chess.ts`; reuse Board's existing `arrows` prop everywhere (`Board.svelte:10-19,100-122,217-252`)
+- [x] Target-layout spec — DESIGN.md "Appendix: Analysis & Game View Layout (Phase 12)"
+- [x] `EvalBar.svelte` (vertical, white-advantage logistic fill, clamped, flips with board); wired into `GameView` beside the board. Analyze reuses it in 12.1
+- [x] `uciToArrow(uci, color?, weight?)` + shared `Arrow` type + `whitePov(value, side)` in `lib/chess.ts`; `Board`/`GameView` now import the shared `Arrow` (dupes removed) and `GameView.pvToArrow` uses the helper
+- [x] Fixed latent eval-POV bug: `GameView` move-list / move-info evals were shown raw (mover-POV) — a black-favoured move read as good-for-white. Now normalized via `whitePov`, matching the eval graph (which already flipped)
 
 ### 12.1 Analysis board — the headline (`views/Analyze.svelte`)
 Today it is bare: board + FEN field + engine checkboxes + text PV panels (`Analyze.svelte:173-231`); no arrows, no interaction.
