@@ -234,6 +234,41 @@ test('live games grid populates from gameStart and move events', async ({ page }
   await expect(page.getByText(/last: e4/)).toBeVisible();
 });
 
+test('live games grid backfills from snapshot without a gameStart event', async ({ page }) => {
+  // Regression: gameStart fires before the dashboard subscribes, so the grid
+  // must seed itself from App.LiveGames. Fire no events here.
+  await setupMock(page, {
+    installed: twoEngines,
+    liveGames: [
+      {
+        gameNumber: 1,
+        round: '1',
+        white: 'SF-A',
+        black: 'SF-B',
+        fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
+        ply: 1,
+        lastMove: 'e2e4',
+        lastSan: 'e4',
+        sideToMove: 'b',
+        evalCp: 35,
+      },
+    ],
+  });
+  await page.goto('/');
+
+  await page.getByRole('button', { name: /\+\s*SF-A/ }).click();
+  await page.getByRole('button', { name: /\+\s*SF-B/ }).click();
+  await page.getByRole('button', { name: 'Start tournament' }).click();
+  await expect(page.getByText('Tournament t1')).toBeVisible();
+
+  // No gameStart/move events fired — grid populates purely from the backfill.
+  await expect(page.getByText('Live games (1)')).toBeVisible();
+  await expect(page.getByText('#1')).toBeVisible();
+  await expect(page.getByText('ply 1')).toBeVisible();
+  await expect(page.getByText('+0.35')).toBeVisible();
+  await expect(page.getByText(/last: e4/)).toBeVisible();
+});
+
 test('stop button cancels the running tournament', async ({ page }) => {
   await setupMock(page, { installed: twoEngines });
   await page.goto('/');

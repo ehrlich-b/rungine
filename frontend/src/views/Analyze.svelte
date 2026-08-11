@@ -2,12 +2,14 @@
   import { onDestroy, onMount } from 'svelte';
   import { App, on } from '../lib/wails';
   import Board from '../components/Board.svelte';
-  import { STARTING_FEN } from '../lib/chess';
+  import EvalBar from '../components/EvalBar.svelte';
+  import { STARTING_FEN, parseFEN, uciToArrow, whitePov, type Arrow } from '../lib/chess';
   import type { registry } from '../../wailsjs/go/models';
 
-  type EngineState = {
-    id: string;
-    name: string;
+  const MULTIPV = 3;
+
+  type Line = {
+    multipv: number;
     depth: number;
     seldepth: number;
     evalCp: number | null;
@@ -16,7 +18,12 @@
     nps: number;
     timeMs: number;
     pv: string[];
-    pvSan: string;
+  };
+
+  type EngineState = {
+    id: string;
+    name: string;
+    lines: Record<number, Line>;
   };
 
   let installed = $state<registry.InstalledEngine[]>([]);
@@ -47,33 +54,25 @@
       return;
     }
     try {
-      // Reset panels
       states = {};
       for (const id of selected) {
         const eng = installed.find((e) => e.ID === id);
         if (!eng) continue;
-        states[id] = {
-          id,
-          name: eng.Name,
-          depth: 0,
-          seldepth: 0,
-          evalCp: null,
-          evalMate: null,
-          nodes: 0,
-          nps: 0,
-          timeMs: 0,
-          pv: [],
-          pvSan: '',
-        };
+        states[id] = { id, name: eng.Name, lines: {} };
       }
       states = { ...states };
 
-      // Start each engine process; ignore "already running" errors.
       for (const id of selected) {
         try {
           await App.StartEngine(id);
         } catch {
           // Already started — proceed.
+        }
+        // Ask for ranked lines; engines that lack MultiPV ignore this.
+        try {
+          await App.SetEngineOption(id, 'MultiPV', String(MULTIPV));
+        } catch {
+          // Unsupported — single line is fine.
         }
       }
       await App.StartAnalysis({
@@ -101,15 +100,50 @@
     }
   }
 
-  function fmtEval(s: EngineState): string {
-    if (s.evalMate !== null) {
-      return s.evalMate > 0 ? `M${s.evalMate}` : `-M${-s.evalMate}`;
+  function resetPosition() {
+    fen = STARTING_FEN;
+  }
+
+  // ---- score helpers (analysis scores are side-to-move POV; show white POV) ----
+
+  let turn = $derived.by<'w' | 'b'>(() => {
+    try {
+      return parseFEN(fen).turn;
+    } catch {
+      return 'w';
     }
-    if (s.evalCp !== null) {
-      const cp = s.evalCp / 100;
-      return cp >= 0 ? `+${cp.toFixed(2)}` : cp.toFixed(2);
+  });
+
+  function whiteCp(line: Line): number | null {
+    if (line.evalCp === null) return null;
+    return whitePov(line.evalCp, turn);
+  }
+  function whiteMate(line: Line): number | null {
+    if (line.evalMate === null) return null;
+    return whitePov(line.evalMate, turn);
+  }
+
+  function fmtEval(line: Line): string {
+    const mate = whiteMate(line);
+    if (mate !== null) return mate > 0 ? `M${mate}` : `-M${-mate}`;
+    const cp = whiteCp(line);
+    if (cp !== null) {
+      const p = cp / 100;
+      return p >= 0 ? `+${p.toFixed(2)}` : p.toFixed(2);
     }
     return '—';
+  }
+
+  function evalClass(line: Line | null): string {
+    if (!line) return '';
+    const mate = whiteMate(line);
+    if (mate !== null) return mate > 0 ? 'good' : 'bad';
+    const cp = whiteCp(line);
+    if (cp !== null) {
+      if (cp > 50) return 'good';
+      if (cp < -50) return 'bad';
+    }
+    return '';
   }
 
   function fmtNumber(n: number): string {
@@ -117,6 +151,41 @@
     if (n >= 1_000) return `${(n / 1_000).toFixed(0)}k`;
     return n.toString();
   }
+
+  function rankedLines(s: EngineState): Line[] {
+    return Object.values(s.lines).sort((a, b) => a.multipv - b.multipv);
+  }
+
+  let engineStates = $derived(Object.values(states));
+
+  // Primary engine = first selected with at least one line; drives the eval
+  // bar and the board arrows.
+  let primary = $derived.by<EngineState | null>(() => {
+    for (const id of selected) {
+      const s = states[id];
+      if (s && Object.keys(s.lines).length > 0) return s;
+    }
+    return null;
+  });
+  let primaryBest = $derived(primary ? primary.lines[1] ?? rankedLines(primary)[0] ?? null : null);
+
+  let barCp = $derived(primaryBest ? whiteCp(primaryBest) : null);
+  let barMate = $derived(primaryBest ? whiteMate(primaryBest) : null);
+
+  let boardArrows = $derived.by<Arrow[]>(() => {
+    if (!primary) return [];
+    const arrows: Arrow[] = [];
+    for (const line of rankedLines(primary)) {
+      const top = line.multipv <= 1;
+      const a = uciToArrow(
+        line.pv[0],
+        top ? 'var(--accent)' : 'rgba(148, 163, 184, 0.55)',
+        top ? 1 : 0.7,
+      );
+      if (a) arrows.push(a);
+    }
+    return arrows;
+  });
 
   onMount(() => {
     refresh();
@@ -126,22 +195,20 @@
         const id = info.EngineID;
         const cur = states[id];
         if (!cur) return;
+        const mpv = info.MultiPV && info.MultiPV > 0 ? info.MultiPV : 1;
         const score = info.Score ?? {};
-        states = {
-          ...states,
-          [id]: {
-            ...cur,
-            depth: info.Depth ?? cur.depth,
-            seldepth: info.SelDepth ?? cur.seldepth,
-            evalCp: score.Centipawns ?? null,
-            evalMate: score.Mate ?? null,
-            nodes: info.Nodes ?? cur.nodes,
-            nps: info.NPS ?? cur.nps,
-            timeMs: info.Time ? Math.round(info.Time / 1_000_000) : cur.timeMs,
-            pv: info.PV ?? cur.pv,
-            pvSan: (info.PV ?? cur.pv).slice(0, 12).join(' '),
-          },
+        const line: Line = {
+          multipv: mpv,
+          depth: info.Depth ?? 0,
+          seldepth: info.SelDepth ?? 0,
+          evalCp: score.Centipawns ?? null,
+          evalMate: score.Mate ?? null,
+          nodes: info.Nodes ?? 0,
+          nps: info.NPS ?? 0,
+          timeMs: info.Time ? Math.round(info.Time / 1_000_000) : 0,
+          pv: info.PV ?? [],
         };
+        states = { ...states, [id]: { ...cur, lines: { ...cur.lines, [mpv]: line } } };
       }),
     );
   });
@@ -172,14 +239,18 @@
 
   <div class="layout">
     <div class="left">
-      <Board {fen} size={48} />
+      <div class="board-and-eval">
+        <EvalBar cp={barCp} mate={barMate} />
+        <Board {fen} size={48} arrows={boardArrows} />
+      </div>
+      {#if primaryBest}
+        <div class="big-eval {evalClass(primaryBest)}">{fmtEval(primaryBest)}</div>
+      {/if}
       <label class="block">
         <span class="label">FEN</span>
         <input bind:value={fen} spellcheck="false" disabled={analyzing} />
       </label>
-      <button onclick={() => (fen = STARTING_FEN)} disabled={analyzing}>
-        Reset to startpos
-      </button>
+      <button onclick={resetPosition} disabled={analyzing}>Reset to startpos</button>
 
       <h3>Engines</h3>
       {#if installed.length === 0}
@@ -203,27 +274,33 @@
     </div>
 
     <div class="panels">
-      {#if Object.keys(states).length === 0}
+      {#if engineStates.length === 0}
         <div class="hint-card muted">
-          Pick one or more engines and click Start to see their analysis stream
-          live here.
+          Pick one or more engines and click Start to see ranked engine lines
+          stream live here, with the top moves drawn on the board.
         </div>
       {:else}
-        {#each Object.values(states) as s (s.id)}
+        {#each engineStates as s (s.id)}
+          {@const ranked = rankedLines(s)}
+          {@const best = ranked[0] ?? null}
           <div class="panel">
             <div class="panel-head">
               <strong>{s.name}</strong>
-              <span class="eval">{fmtEval(s)}</span>
-              <span class="muted">depth {s.depth}/{s.seldepth || '—'}</span>
+              {#if best}
+                <span class="eval {evalClass(best)}">{fmtEval(best)}</span>
+                <span class="muted">depth {best.depth}/{best.seldepth || '—'}</span>
+                <span class="meta muted">{fmtNumber(best.nodes)} nodes · {fmtNumber(best.nps)} nps · {(best.timeMs / 1000).toFixed(1)}s</span>
+              {:else}
+                <span class="muted">thinking…</span>
+              {/if}
             </div>
-            <div class="panel-meta">
-              <span class="muted">{fmtNumber(s.nodes)} nodes</span>
-              <span class="muted">{fmtNumber(s.nps)} nps</span>
-              <span class="muted">{(s.timeMs / 1000).toFixed(1)}s</span>
-            </div>
-            {#if s.pvSan}
-              <div class="pv">{s.pvSan}</div>
-            {/if}
+            {#each ranked as line (line.multipv)}
+              <div class="line">
+                <span class="line-eval {evalClass(line)}">{fmtEval(line)}</span>
+                <span class="line-depth muted">d{line.depth}</span>
+                <span class="line-pv">{line.pv.slice(0, 14).join(' ') || '…'}</span>
+              </div>
+            {/each}
           </div>
         {/each}
       {/if}
@@ -265,6 +342,27 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     padding: var(--space-md);
+  }
+
+  .board-and-eval {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    gap: var(--space-sm);
+  }
+
+  .big-eval {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 1.4rem;
+    font-weight: 700;
+    text-align: center;
+    color: var(--text-primary);
+  }
+  .big-eval.good {
+    color: var(--result-win);
+  }
+  .big-eval.bad {
+    color: var(--result-loss);
   }
 
   .block {
@@ -321,6 +419,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-sm);
+    min-width: 0;
   }
 
   .hint-card {
@@ -339,12 +438,19 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
+    min-width: 0;
   }
 
   .panel-head {
     display: flex;
     align-items: baseline;
     gap: var(--space-sm);
+    flex-wrap: wrap;
+  }
+
+  .panel-head .meta {
+    margin-left: auto;
+    font-size: 0.75rem;
   }
 
   .eval {
@@ -352,22 +458,48 @@
     font-weight: 600;
     color: var(--accent);
   }
-
-  .panel-meta {
-    display: flex;
-    gap: var(--space-md);
-    font-size: 0.78rem;
+  .eval.good {
+    color: var(--result-win);
+  }
+  .eval.bad {
+    color: var(--result-loss);
   }
 
-  .pv {
+  .line {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-sm);
     font-family: ui-monospace, SFMono-Regular, monospace;
-    font-size: 0.85rem;
-    color: var(--text-primary);
+    font-size: 0.82rem;
+    padding: 2px var(--space-sm);
     background: var(--surface-2);
-    padding: var(--space-xs) var(--space-sm);
     border-radius: var(--radius-sm);
-    line-height: 1.4;
-    word-break: break-word;
+    min-width: 0;
+  }
+
+  .line-eval {
+    font-weight: 600;
+    min-width: 3.5em;
+  }
+  .line-eval.good {
+    color: var(--result-win);
+  }
+  .line-eval.bad {
+    color: var(--result-loss);
+  }
+
+  .line-depth {
+    min-width: 2.5em;
+    font-size: 0.75rem;
+  }
+
+  .line-pv {
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
   }
 
   .error {

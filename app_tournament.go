@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -160,6 +161,25 @@ type TournamentSummary struct {
 	Standings   []PlayerScoreRow `json:"standings"`
 	Crosstable  CrosstableData   `json:"crosstable"`
 	Sprt        *SprtState       `json:"sprt,omitempty"`
+}
+
+// LiveGameSnapshot is a lightweight view of a currently-running game,
+// enough for the live-games grid to render immediately on mount without
+// having observed the tournament:gameStart / tournament:move events.
+type LiveGameSnapshot struct {
+	GameNumber int    `json:"gameNumber"`
+	Round      string `json:"round"`
+	White      string `json:"white"`
+	Black      string `json:"black"`
+	FEN        string `json:"fen"`
+	Ply        int    `json:"ply"`
+	LastMove   string `json:"lastMove"` // UCI of last move, "" if none yet
+	LastSan    string `json:"lastSan"`
+	SideToMove string `json:"sideToMove"` // "w" or "b"
+	EvalCp     *int   `json:"evalCp,omitempty"`
+	EvalMate   *int   `json:"evalMate,omitempty"`
+	WhiteMs    *int64 `json:"whiteMs,omitempty"`
+	BlackMs    *int64 `json:"blackMs,omitempty"`
 }
 
 type tournamentRun struct {
@@ -845,6 +865,96 @@ func buildLiveGameDetail(g *liveGameState) (GameDetail, error) {
 		d.Moves = append(d.Moves, md)
 	}
 	return d, nil
+}
+
+// LiveGames returns a snapshot of every currently-running game in a
+// tournament, sorted by game number. The GUI calls this on mount to seed
+// its live grid so it does not depend on having caught every
+// tournament:gameStart event (which fire before the view subscribes).
+func (m *TournamentManager) LiveGames(id string) ([]LiveGameSnapshot, error) {
+	m.mu.Lock()
+	run, ok := m.runs[id]
+	m.mu.Unlock()
+	if !ok {
+		return nil, fmt.Errorf("tournament not found: %s", id)
+	}
+	run.mu.Lock()
+	defer run.mu.Unlock()
+	out := make([]LiveGameSnapshot, 0, len(run.live))
+	for _, g := range run.live {
+		out = append(out, liveGameSnapshot(g))
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].GameNumber < out[j].GameNumber })
+	return out, nil
+}
+
+// liveGameSnapshot derives a LiveGameSnapshot from in-progress game state.
+func liveGameSnapshot(g *liveGameState) LiveGameSnapshot {
+	s := LiveGameSnapshot{
+		GameNumber: g.pairing.GameNumber,
+		Round:      g.pairing.Round,
+		White:      g.pairing.White.Name,
+		Black:      g.pairing.Black.Name,
+		FEN:        g.latestFEN,
+		SideToMove: "w",
+	}
+	if len(g.moves) > 0 {
+		last := g.moves[len(g.moves)-1]
+		s.Ply = last.Ply
+		s.LastMove = last.UCI
+		s.LastSan = last.SAN
+		// The side to move now is the opposite of whoever just moved.
+		if last.Side == chess.White {
+			s.SideToMove = "b"
+		} else {
+			s.SideToMove = "w"
+		}
+		if last.HasInfo {
+			if last.Info.Score.Mate != nil {
+				v := *last.Info.Score.Mate
+				s.EvalMate = &v
+			} else if last.Info.Score.Centipawns != nil {
+				v := *last.Info.Score.Centipawns
+				s.EvalCp = &v
+			}
+		}
+		// Most recent remaining clock for each side, scanning backwards.
+		for i := len(g.moves) - 1; i >= 0 && (s.WhiteMs == nil || s.BlackMs == nil); i-- {
+			mr := g.moves[i]
+			ms := mr.ClockAfter.Milliseconds()
+			if mr.Side == chess.White && s.WhiteMs == nil {
+				s.WhiteMs = &ms
+			} else if mr.Side == chess.Black && s.BlackMs == nil {
+				s.BlackMs = &ms
+			}
+		}
+	}
+	if s.FEN == "" {
+		s.FEN = openingFEN(g.pairing)
+	}
+	return s
+}
+
+// openingFEN computes the position FEN a live game starts from (its start
+// FEN with any opening moves applied), used when no move has been played
+// yet and latestFEN is still empty.
+func openingFEN(p tournament.Pairing) string {
+	var game *chess.Game
+	var err error
+	if p.StartFEN != "" {
+		game, err = chess.FromFEN(p.StartFEN)
+		if err != nil {
+			return ""
+		}
+	} else {
+		game = chess.NewGame()
+	}
+	for _, mv := range p.StartMoves {
+		if err := game.PushUCI(mv); err != nil {
+			return game.FEN()
+		}
+	}
+	return game.FEN()
 }
 
 func buildGameDetail(o tournament.GameOutcome) (GameDetail, error) {

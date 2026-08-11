@@ -2,7 +2,8 @@
   import { onMount, onDestroy } from 'svelte';
   import Board from './Board.svelte';
   import EvalGraph from './EvalGraph.svelte';
-  import { STARTING_FEN, parseFEN, coordsToSquare } from '../lib/chess';
+  import EvalBar from './EvalBar.svelte';
+  import { STARTING_FEN, parseFEN, coordsToSquare, uciToArrow, whitePov, type Arrow } from '../lib/chess';
   import { on } from '../lib/wails';
   import { main } from '../../wailsjs/go/models';
 
@@ -143,11 +144,13 @@
   }
 
   function formatEval(m: main.MoveDetail): string {
+    const side = m.side === 'b' ? 'b' : 'w';
     if (m.evalMate !== undefined && m.evalMate !== null) {
-      return m.evalMate > 0 ? `M${m.evalMate}` : `-M${-m.evalMate}`;
+      const mate = whitePov(m.evalMate, side);
+      return mate > 0 ? `M${mate}` : `-M${-mate}`;
     }
     if (m.evalCp !== undefined && m.evalCp !== null) {
-      const cp = m.evalCp / 100;
+      const cp = whitePov(m.evalCp, side) / 100;
       return cp >= 0 ? `+${cp.toFixed(2)}` : cp.toFixed(2);
     }
     return '';
@@ -155,12 +158,14 @@
 
   function evalColor(m: main.MoveDetail | null): string {
     if (!m) return '';
+    const side = m.side === 'b' ? 'b' : 'w';
     if (m.evalMate !== undefined && m.evalMate !== null) {
-      return m.evalMate > 0 ? 'good' : 'bad';
+      return whitePov(m.evalMate, side) > 0 ? 'good' : 'bad';
     }
     if (m.evalCp !== undefined && m.evalCp !== null) {
-      if (m.evalCp > 50) return 'good';
-      if (m.evalCp < -50) return 'bad';
+      const cp = whitePov(m.evalCp, side);
+      if (cp > 50) return 'good';
+      if (cp < -50) return 'bad';
     }
     return '';
   }
@@ -196,13 +201,9 @@
 
   let movePairs = $derived(pairs());
 
-  type Arrow = { from: string; to: string; color?: string; weight?: number };
-
   function pvToArrow(info: EngineInfo | null, color: string): Arrow | null {
     if (!info || !info.pv || info.pv.length === 0) return null;
-    const move = info.pv[0];
-    if (!move || move.length < 4) return null;
-    return { from: move.slice(0, 2), to: move.slice(2, 4), color };
+    return uciToArrow(info.pv[0], color);
   }
 
   let boardArrows = $derived.by<Arrow[]>(() => {
@@ -214,6 +215,19 @@
     const info = sideToMove === 'w' ? liveWhite : liveBlack;
     const arrow = pvToArrow(info, 'var(--accent)');
     return arrow ? [arrow] : [];
+  });
+
+  // White-POV eval at the current ply, driving the eval bar. Null before the
+  // first move (even start position).
+  let barCp = $derived.by<number | null>(() => {
+    const m = currentMove;
+    if (!m || m.evalCp === undefined || m.evalCp === null) return null;
+    return whitePov(m.evalCp, m.side === 'b' ? 'b' : 'w');
+  });
+  let barMate = $derived.by<number | null>(() => {
+    const m = currentMove;
+    if (!m || m.evalMate === undefined || m.evalMate === null) return null;
+    return whitePov(m.evalMate, m.side === 'b' ? 'b' : 'w');
   });
 
   function findKingSquare(fen: string, color: 'w' | 'b'): string | null {
@@ -284,7 +298,10 @@
 
   <div class="layout">
     <div class="board-area">
-      <Board fen={position} {flipped} {lastMove} arrows={boardArrows} {checkSquare} size={56} />
+      <div class="board-and-eval">
+        <EvalBar cp={barCp} mate={barMate} {flipped} />
+        <Board fen={position} {flipped} {lastMove} arrows={boardArrows} {checkSquare} size={56} />
+      </div>
       <div class="nav">
         <button onclick={() => go(0)} title="Start (Home)">⏮</button>
         <button onclick={() => go(currentPly - 1)} title="Previous (←)">◀</button>
@@ -490,6 +507,13 @@
     flex-direction: column;
     gap: var(--space-sm);
     align-items: flex-start;
+  }
+
+  .board-and-eval {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    gap: var(--space-sm);
   }
 
   .nav {
